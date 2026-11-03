@@ -13,7 +13,7 @@ module(name = "bazel_r2_cache_dev")
 bazel_dep(name = "tbhb_rules", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules",
-    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
+    commit = "4292087e371d7b3da4be5e09200d12e9a874ae40",
     remote = "https://github.com/tbhb-dev/rules.git",
 )
 
@@ -23,7 +23,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_python", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_python",
-    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
+    commit = "4292087e371d7b3da4be5e09200d12e9a874ae40",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "python",
 )
@@ -31,12 +31,12 @@ git_override(
 # The TypeScript checks (tsc, Biome, typescript-eslint, knip,
 # dependency-cruiser, Vitest, Stryker and pnpm audit), a nested module of the
 # same repository with its own pinned toolchain. Same pin as tbhb_rules
-# (main after tbhb-dev/rules#22);
+# (main after tbhb-dev/rules#20);
 # locally, `common --override_module=tbhb_rules_typescript=../rules/typescript`.
 bazel_dep(name = "tbhb_rules_typescript", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_typescript",
-    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
+    commit = "4292087e371d7b3da4be5e09200d12e9a874ae40",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "typescript",
 )
@@ -47,7 +47,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_cloudflare", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_cloudflare",
-    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
+    commit = "4292087e371d7b3da4be5e09200d12e9a874ae40",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "cloudflare",
 )
@@ -60,15 +60,25 @@ bazel_dep(name = "bazel_lib", version = "3.7.0")
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
     name = "npm",
-    data = ["//:package.json"],
+    data = [
+        "//:package.json",
+        "//:pnpm-workspace.yaml",
+    ],
     lifecycle_hooks = {"*": []},
     pnpm_lock = "//:pnpm-lock.yaml",
 )
 use_repo(npm, "npm")
 
 # The pnpm that rules_js pins, for regenerating the lock:
-# bazel run -- @pnpm//:pnpm --dir "$PWD" install --lockfile-only
+# bazel run -- @pnpm//:pnpm --dir "$PWD" install --lockfile-only --fix-lockfile
+# rules_js 3.5.2's own table stops at 12.8.2, so the version and its
+# integrity are pinned here.
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm", dev_dependency = True)
+pnpm.pnpm(
+    name = "pnpm",
+    pnpm_version = "12.16.1",
+    pnpm_version_integrity = "sha512-CR0d7nknV1Zhsl2rPCrjHK/BxU1rce1qZgDPDByxBDSkR+rhQBXxsj4ua+3u1535SpMuIWTSgyKA3OP7MvZW0Q==",
+)
 use_repo(pnpm, "pnpm")
 
 # The Python environment: the interpreter .python-version names and every
