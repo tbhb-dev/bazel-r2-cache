@@ -20,9 +20,15 @@ const { MemoryStore } = await import(join(root, "src", "testing.ts"));
 const E2E = "e2e-3c9f1a7b52";
 const VERSION = "7d2e4f60-1b3c-4a5d-8e9f-0a1b2c3d4e5f";
 const OVERRIDE = "Cloudflare-Workers-Version-Overrides";
+const OLD = "00000000-0000-4000-8000-000000000000";
 
-async function serve(env) {
+// answers(n) names the version that answers the nth request, from 0, as a
+// server that hasn't seen the new deployment yet would; undefined keeps
+// the Worker's own.
+async function serve(env, answers = () => undefined) {
+  let requests = 0;
   const server = createServer(async (req, res) => {
+    const answer = answers(requests++);
     if (
       req.headers[OVERRIDE.toLowerCase()] !== `bazel-r2-cache-stg="${VERSION}"`
     ) {
@@ -43,7 +49,11 @@ async function serve(env) {
       }),
       env,
     );
-    res.writeHead(response.status, Object.fromEntries(response.headers));
+    const headers = Object.fromEntries(response.headers);
+    if (answer !== undefined) {
+      headers["bazel-cache-worker-version"] = answer;
+    }
+    res.writeHead(response.status, headers);
     res.end(Buffer.from(await response.arrayBuffer()));
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -65,6 +75,7 @@ function check(
       E2E_TOKEN: token,
       WORKER_REQUEST_HEADERS: JSON.stringify(headers),
       WORKER_VERSION_ID: version,
+      E2E_SETTLE_SECONDS: "8",
     },
   });
   let output = "";
@@ -94,6 +105,19 @@ test("passes against a working Worker and never prints the token", async () => {
   assert.ok(!r.output.includes(E2E));
 });
 
+test("waits until the new version answers in a row", async () => {
+  // The old version answers at first, then the new one once, then the old
+  // again: only an unbroken run of the new one ends the wait.
+  const stale = [OLD, OLD, undefined, OLD];
+  const server = await serve(env, (n) => (n < stale.length ? stale[n] : undefined));
+  const { port } = server.address();
+  const r = await check(`http://127.0.0.1:${port}`, E2E);
+  server.close();
+  assert.equal(r.status, 0, r.output);
+  assert.match(r.output, new RegExp(`ok: version ${VERSION} answers`));
+  assert.doesNotMatch(r.output, /FAIL/);
+});
+
 test("fails when the Worker refuses the token", async () => {
   const server = await serve(env);
   const { port } = server.address();
@@ -116,13 +140,18 @@ test("fails when the request headers aren't sent", async () => {
 test("fails when another version answers", async () => {
   const server = await serve(env);
   const { port } = server.address();
-  const other = "00000000-0000-4000-8000-000000000000";
-  const r = await check(`http://127.0.0.1:${port}`, E2E, { version: other });
+  const r = await check(`http://127.0.0.1:${port}`, E2E, { version: OLD });
   server.close();
   assert.equal(r.status, 1);
   assert.match(
     r.output,
-    new RegExp(`version ${VERSION} answered, expected ${other}`),
+    new RegExp(
+      `FAIL: version ${OLD} didn't answer 5 requests in a row within 8s; ${VERSION} answered last`,
+    ),
+  );
+  assert.match(
+    r.output,
+    new RegExp(`version ${VERSION} answered, expected ${OLD}`),
   );
 });
 
