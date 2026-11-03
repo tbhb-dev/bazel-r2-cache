@@ -43,7 +43,7 @@ jobs:
       contents: read  # checkout
       id-token: write  # Workload Identity: OIDC token for 1Password access
     outputs:
-      deployed: ${{ steps.deploy.outputs.result == 'success' }}
+      deployed: ${{ steps.deploy.outputs.deployed }}
     steps: &deploy
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
@@ -84,9 +84,11 @@ jobs:
           # its deploy token joins the 1Password Environment.
           if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
             echo "::notice::${DEPLOY_ENV} has no CLOUDFLARE_API_TOKEN yet; skipping until its bootstrap deploy"
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           bazelisk run --config=ci "//:deploy_${DEPLOY_ENV}"
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
 
   prd:
     name: prd
