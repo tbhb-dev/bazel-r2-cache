@@ -1,0 +1,176 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Main quality gate. Bazel pins the tools and owns the gates: the hermetic
+# checks are cached `bazel test` targets, so `bazel test //...` runs them
+# all, and the few that need the network, Git history or the GitHub API run
+# as their own steps after it. A final `conclusion` job gives branch
+# protection one stable required check.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A lockfile only binds a version it has already seen: moving a pin in
+# mise.toml while leaving mise.lock alone would make mise fetch the new
+# version and rewrite the lockfile in place. MISE_LOCKED makes that a hard
+# failure instead.
+env:
+  MISE_LOCKED: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Bazel 9.x only, the version .bazelversion pins, on Linux alone: the
+  # Worker runs on Cloudflare's Linux-based runtime, so no other OS adds
+  # coverage. The checks that need the network or GitHub's API run in the
+  # repo job.
+  bazel:
+    name: bazel
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+          cache-save: ${{ github.event_name != 'pull_request' }}
+
+      # //... covers the @tbhb_rules lint, format, shell and docs tests over
+      # the whole tree, the buildifier_test, and the preset.update_test that
+      # fails when preset.bazelrc is stale.
+      # Fetching hits PyPI, GitHub and the BCR mirror, which can fail for
+      # longer than Bazel's own download retries wait. Only the fetch is
+      # retried: a test failure never is.
+      - name: Fetch, retrying transient failures
+        run: |
+          for attempt in 1 2 3; do
+            bazelisk fetch --config=ci //... && break
+            if ((attempt == 3)); then exit 1; fi
+            sleep 60
+          done
+
+      - name: Test
+        run: bazelisk test --config=ci //...
+
+      # A failed run's test logs, so a failure that does not recur can still
+      # be read.
+      - name: Keep the test logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: testlogs
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          if-no-files-found: ignore
+
+  # The repository-level checks, beside the bazel job, so they don't
+  # wait behind the tests.
+  repo:
+    name: repo
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # gitleaks scans the whole history, so it needs every commit.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+          cache-save: false
+
+      - name: Check that MODULE.bazel is tidy
+        run: |
+          bazelisk mod tidy
+          git diff --exit-code -- MODULE.bazel
+
+      # Git history is not a declared input, so the history scan runs
+      # outside the test graph; //:gitleaks_test covers the working tree.
+      - name: Scan Git history for secrets
+        run: bazelisk run //:gitleaks_history
+
+      # Advisories change without any input changing, so the audit is never
+      # a cached test.
+      - name: Audit the locked Python dependencies
+        run: bazelisk run //tools:pip_audit
+
+      # //:zizmor_test runs the offline audits; a token turns on the online
+      # ones, which need the network.
+      - name: Audit workflow security online
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          bazelisk run @tbhb_rules_zizmor//:zizmor --
+          --persona pedantic --no-progress "${GITHUB_WORKSPACE}/.github"
+
+      # //:codeowners_test checks that every pattern matches a path; owner
+      # and syntax validation needs GitHub's API.
+      - name: Check CODEOWNERS owners and syntax
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          errors="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${HEAD_SHA}" \
+            --jq '.errors')"
+          count="$(printf '%s' "${errors}" | jq 'length')"
+          if [ "${count}" -ne 0 ]; then
+            echo "::error::CODEOWNERS has ${count} owner or syntax error(s):"
+            printf '%s' "${errors}" |
+              jq -r '.[] | "  line \(.line): \(.kind): \(.message)"'
+            exit 1
+          fi
+
+  # One stable required check for branch protection. `if: always()` runs it
+  # even when a needed job failed, and skipped jobs count as failures here
+  # so a gate that silently did not run cannot pass.
+  conclusion:
+    name: conclusion
+    if: always()
+    needs: [bazel, repo]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Fail if any needed job did not succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS"
+          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
+            echo "A required job did not succeed." >&2
+            exit 1
+          fi

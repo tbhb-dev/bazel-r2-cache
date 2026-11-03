@@ -1,0 +1,25 @@
+{
+  "language": "en",
+  "ignorePaths": [
+    ".mise/**/*",
+    ".rumdl_cache/**/*",
+    ".vale/**/*",
+    ".venv/**/*",
+    "bazel-*/**/*",
+    "coverage.xml",
+    "LICENSE",
+    "MODULE.bazel.lock",
+    "mise.lock",
+    "tmp/**/*",
+    "tools/testdata/**/*",
+    "uv.lock"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "project",
+      "path": "./.cspell-words.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["project", "python"]
+}

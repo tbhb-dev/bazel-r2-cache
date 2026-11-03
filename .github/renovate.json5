@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // The presets track tbhb-dev/renovate-config's main branch, pinned by
+  // commit; Renovate bumps the pins (the "renovate-config" group).
+  extends: [
+    "github>tbhb-dev/renovate-config//default.json5#c71a5b86a55b202b883c37d775402705dde1fb6a", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#c71a5b86a55b202b883c37d775402705dde1fb6a", // main
+    "github>tbhb-dev/renovate-config//python.json5#c71a5b86a55b202b883c37d775402705dde1fb6a", // main
+  ],
+
+  // Nothing beyond the presets yet: the Bazel pins and the uv lock are
+  // covered there.
+}
