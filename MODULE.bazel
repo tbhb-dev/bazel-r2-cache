@@ -55,6 +55,7 @@ git_override(
 # The Worker's own npm packages (package.json, pnpm-lock.yaml), every one
 # pinned by integrity hash, with no lifecycle script allowed to run.
 bazel_dep(name = "aspect_rules_js", version = "3.5.2")
+bazel_dep(name = "bazel_lib", version = "3.7.0")
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(

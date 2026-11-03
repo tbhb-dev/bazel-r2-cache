@@ -9,10 +9,11 @@
 # protection one stable required check.
 name: ci
 
+# On main, the deploy workflow runs these same jobs before it deploys,
+# rather than reacting to this workflow's result.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read

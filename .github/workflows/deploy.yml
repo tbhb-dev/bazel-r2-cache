@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Continuous deployment: each push to main runs ci's jobs (the reusable
+# ci.yml), then deploys to stg, then prd. Each environment's job loads that environment's variables from
+# its 1Password Environment through Workload Identity, which matches this
+# repository, this workflow's name and the GitHub environment, so the name
+# `deploy` and the environment names are part of that trust. worker_deploy
+# tests each new version at 0% and again after it takes traffic, and puts
+# the previous version back when a test fails, so a failed stg deploy never
+# reaches prd.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  MISE_LOCKED: "1"
+
+jobs:
+  ci:
+    name: ci
+    # The pinned actionlint rejects zizmor's suggested `$/` form.
+    uses: ./.github/workflows/ci.yml  # zizmor: ignore[self-repository]
+
+  stg:
+    name: stg
+    needs: ci
+    runs-on: ubuntu-24.04
+    environment: stg
+    # One deploy of an environment at a time, and never cancelled midway:
+    # worker_deploy refuses to move traffic if the deployment changed under
+    # it, and a cancelled deploy has to restore the previous version.
+    concurrency:
+      group: deploy-stg
+      cancel-in-progress: false
+    permissions:
+      contents: read  # checkout
+      id-token: write  # Workload Identity: OIDC token for 1Password access
+    outputs:
+      deployed: ${{ steps.deploy.outputs.result == 'success' }}
+    steps: &deploy
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      # Every variable in the environment's 1Password Environment:
+      # CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and the four token
+      # secrets the Worker serves with.
+      - name: Load the environment's secrets
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2  # v5.0.1
+        with:
+          export-env: true
+          version: 2.41.1
+        env:
+          OP_WORKLOAD_ID: ${{ secrets.OP_WORKLOAD_ID }}
+          OP_ENVIRONMENT_ID: ${{ secrets.OP_ENVIRONMENT_ID }}
+          OP_INTEGRATION_KEY: ${{ secrets.OP_INTEGRATION_KEY }}
+
+      - name: Deploy and test
+        id: deploy
+        env:
+          DEPLOY_ENV: ${{ github.job }}
+        run: |
+          # An environment's first deploy is a manual bootstrap, after which
+          # its deploy token joins the 1Password Environment.
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            echo "::notice::${DEPLOY_ENV} has no CLOUDFLARE_API_TOKEN yet; skipping until its bootstrap deploy"
+            exit 0
+          fi
+          bazelisk run --config=ci "//:deploy_${DEPLOY_ENV}"
+
+  prd:
+    name: prd
+    needs: stg
+    if: needs.stg.outputs.deployed == 'true'
+    runs-on: ubuntu-24.04
+    environment: prd
+    concurrency:
+      group: deploy-prd
+      cancel-in-progress: false
+    permissions:
+      contents: read  # checkout
+      id-token: write  # Workload Identity: OIDC token for 1Password access
+    steps: *deploy
