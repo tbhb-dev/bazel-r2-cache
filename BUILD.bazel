@@ -5,6 +5,7 @@ load("@bazel_env.bzl", "bazel_env")
 load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazelrc-preset.bzl", "bazelrc_preset")
 load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@tbhb_rules//format:defs.bzl", "format", "format_test")
 load(
     "@tbhb_rules//lint:defs.bzl",
@@ -111,6 +112,9 @@ repo_files(
     ],
 )
 
+# The Worker's own npm packages, which the TypeScript checks read.
+npm_link_all_packages(name = "node_modules")
+
 # The Worker project: its sources, tests and tool configs.
 WORKER = glob(["src/**"]) + [
     ".dependency-cruiser.cjs",
@@ -177,11 +181,12 @@ worker_deploy(
 )
 
 # The TypeScript gates, from tbhb_rules_typescript, each over a copy of the
-# Worker project. The Worker imports no npm package; its types come from
-# worker-configuration.d.ts.
+# Worker project with its node_modules linked in. The Worker imports no npm
+# package yet, and its types come from worker-configuration.d.ts.
 tsc_test(
     name = "tsc_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
 )
 
 biome_test(
@@ -192,27 +197,32 @@ biome_test(
 eslint_test(
     name = "eslint_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
 )
 
 knip_test(
     name = "knip_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
 )
 
 depcruise_test(
     name = "depcruise_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
 )
 
 vitest_test(
     name = "vitest_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
 )
 
 # stryker.config.mjs sets concurrency 2; the tag gives the test those CPUs.
 stryker_test(
     name = "stryker_test",
     srcs = WORKER,
+    node_modules = [":node_modules"],
     tags = ["cpu:2"],
 )
 
