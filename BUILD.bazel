@@ -122,6 +122,7 @@ WORKER = glob(["src/**"]) + [
     "eslint.config.mjs",
     "knip.json",
     "package.json",
+    "pnpm-workspace.yaml",
     "stryker.config.mjs",
     "tsconfig.json",
     "vitest.config.mjs",
