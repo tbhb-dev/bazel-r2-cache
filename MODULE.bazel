@@ -13,7 +13,7 @@ module(name = "bazel_r2_cache_dev")
 bazel_dep(name = "tbhb_rules", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules",
-    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
+    commit = "61715f14f48c5fda85cf1555cde451a0b958e20c",
     remote = "https://github.com/tbhb-dev/rules.git",
 )
 
@@ -23,21 +23,33 @@ git_override(
 bazel_dep(name = "tbhb_rules_python", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_python",
-    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
+    commit = "61715f14f48c5fda85cf1555cde451a0b958e20c",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "python",
 )
 
 # The TypeScript checks (tsc, Biome, typescript-eslint, knip,
 # dependency-cruiser, Vitest, Stryker and pnpm audit), a nested module of the
-# same repository with its own pinned toolchain. Same pin as tbhb_rules;
+# same repository with its own pinned toolchain. Same pin as tbhb_rules
+# (main after tbhb-dev/rules#21);
 # locally, `common --override_module=tbhb_rules_typescript=../rules/typescript`.
 bazel_dep(name = "tbhb_rules_typescript", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_typescript",
-    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
+    commit = "61715f14f48c5fda85cf1555cde451a0b958e20c",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "typescript",
+)
+
+# The Worker rules (bundle, generated types, tested deploys), from the same
+# repository, with wrangler pinned there. Same pin as tbhb_rules; locally,
+# `common --override_module=tbhb_rules_cloudflare=../rules/cloudflare`.
+bazel_dep(name = "tbhb_rules_cloudflare", version = "0.0.0", dev_dependency = True)
+git_override(
+    module_name = "tbhb_rules_cloudflare",
+    commit = "61715f14f48c5fda85cf1555cde451a0b958e20c",
+    remote = "https://github.com/tbhb-dev/rules.git",
+    strip_prefix = "cloudflare",
 )
 
 # The Worker's own npm packages (package.json, pnpm-lock.yaml), every one

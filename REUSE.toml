@@ -18,6 +18,7 @@ path = [
   "MODULE.bazel.lock",
   "pnpm-lock.yaml",
   "uv.lock",
+  "worker-configuration.d.ts",
   ".mise/locks/**",
 ]
 SPDX-FileCopyrightText = "Tony Burns"

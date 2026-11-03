@@ -1,4 +1,7 @@
 {
+  "files": {
+    "includes": ["**", "!worker-configuration.d.ts"]
+  },
   "linter": {
     "rules": {
       "preset": "recommended"
