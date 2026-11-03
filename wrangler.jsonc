@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+//
+// The Worker in each environment. The ops repository's OpenTofu owns the
+// buckets and the custom domains (bazel-cache-stg.tbhb.dev and
+// bazel-cache.tbhb.dev), so wrangler manages no routes and serves nothing
+// on workers.dev. READ_TOKENS, MAIN_TOKEN, PR_TOKEN and E2E_TOKEN are
+// Worker secrets. CF_VERSION_METADATA gives the Worker its version id, which
+// it returns on every response so the deploy's checks can tell which
+// version answered.
+{
+  "name": "bazel-r2-cache",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-23",
+  "workers_dev": false,
+  "env": {
+    "stg": {
+      "name": "bazel-r2-cache-stg",
+      "workers_dev": false,
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "r2_buckets": [
+        { "binding": "CACHE", "bucket_name": "bazel-r2-cache-stg" }
+      ]
+    },
+    "prd": {
+      "name": "bazel-r2-cache-prd",
+      "workers_dev": false,
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "r2_buckets": [
+        { "binding": "CACHE", "bucket_name": "bazel-r2-cache-prd" }
+      ]
+    }
+  }
+}

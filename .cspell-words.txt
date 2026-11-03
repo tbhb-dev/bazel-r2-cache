@@ -24,6 +24,7 @@ cuda
 cyclop
 deadcode
 delenv
+depcruise
 depguard
 direnv
 docstrings
@@ -64,6 +65,7 @@ importpath
 inconshreveable
 keepalive
 keepends
+knip
 listy
 LLMX
 localmodule
@@ -141,6 +143,7 @@ unstampable
 unvalidated
 usefixtures
 usetesting
+vitest
 worktrees
 xdist
 xgenerated

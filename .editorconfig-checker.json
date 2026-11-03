@@ -1,9 +1,10 @@
 {
   "Exclude": [
-    "^bazel-",
     "^\\.mise/",
     "^\\.vale/(Google|write-good|proselint|ai-tells.*)/",
     "^\\.venv/",
-    "^tmp/"
+    "^bazel-",
+    "^tmp/",
+    "^worker-configuration\\.d\\.ts$"
   ]
 }

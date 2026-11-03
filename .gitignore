@@ -7,6 +7,8 @@ bazel-*
 # bazel_env's symlink into the output tree (bazel run //:bazel_env).
 .bazel_env
 coverage.*
+# wrangler's project cache (worker_types_test.update).
+.wrangler/
 mise.local.toml
 .env*
 .DS_Store
