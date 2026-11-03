@@ -29,6 +29,7 @@ describe("authorize", () => {
     ["a read token with its list padding", "Bearer  host-b"],
     ["another scheme", "Basic main-secret"],
     ["a lowercase scheme", "bearer main-secret"],
+    // cspell:ignore Bearermain
     ["no space after the scheme", "Bearermain-secret"],
     ["a bare token", "main-secret"],
   ])("rejects %s", async (_, header) => {

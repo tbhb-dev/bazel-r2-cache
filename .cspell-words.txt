@@ -7,7 +7,6 @@ bazelignore
 bazelisk
 bazelrc
 bazelversion
-Bearermain
 BINDIR
 buildcop
 buildifier

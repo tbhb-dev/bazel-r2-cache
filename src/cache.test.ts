@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { type CacheEnv, handle, PR_HEADER } from "./cache.ts";
-import worker, { type Env } from "./index.ts";
+import worker, { type Env, VERSION_HEADER } from "./index.ts";
 import { MemoryStore } from "./testing.ts";
 
 // SHA-256 of "hello".
@@ -301,14 +301,34 @@ describe("writes", () => {
 });
 
 describe("the Worker", () => {
-  it("serves requests through the cache", async () => {
-    const bindings = env as unknown as Env;
-    type WorkerRequest = Parameters<typeof worker.fetch>[0];
+  const VERSION = "0f6c1d2e-8a4b-4c3d-9e5f-1a2b3c4d5e6f";
+  type WorkerRequest = Parameters<typeof worker.fetch>[0];
+
+  function bindings(): Env {
+    return {
+      ...env,
+      CF_VERSION_METADATA: { id: VERSION },
+    } as unknown as Env;
+  }
+
+  it("serves requests through the cache and names its version", async () => {
     put(`cas/${HELLO}`, "hello");
     const response = await worker.fetch(
       request("GET", `/cas/${HELLO}`) as WorkerRequest,
-      bindings,
+      bindings(),
     );
+    expect(response.status).toBe(200);
+    expect(response.headers.get(VERSION_HEADER)).toBe(VERSION);
     expect(await response.text()).toBe("hello");
+  });
+
+  it("names its version on a refusal too, keeping the other headers", async () => {
+    const response = await worker.fetch(
+      request("GET", `/cas/${HELLO}`, { token: null }) as WorkerRequest,
+      bindings(),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get(VERSION_HEADER)).toBe(VERSION);
+    expect(response.headers.get("WWW-Authenticate")).toBe("Bearer");
   });
 });
