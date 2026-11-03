@@ -13,7 +13,15 @@ name: ci
 # rather than reacting to this workflow's result.
 on:
   pull_request:
+  # The deploy workflow runs CI on each push to main. A reusable workflow
+  # sees only the secrets it declares; the bazel job's `cache` environment
+  # supplies BAZEL_CACHE_TOKEN, which no caller passes.
   workflow_call:
+    secrets:
+      BAZEL_CACHE_TOKEN:
+        required: false
+      BAZEL_CACHE_PR_TOKEN:
+        required: false
 
 permissions:
   contents: read
