@@ -16,6 +16,7 @@ version = 1
 path = [
   "mise.lock",
   "MODULE.bazel.lock",
+  "pnpm-lock.yaml",
   "uv.lock",
   ".mise/locks/**",
 ]

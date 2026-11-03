@@ -4,6 +4,7 @@
 load("@bazel_env.bzl", "bazel_env")
 load("@bazelrc-preset.bzl", "bazelrc_preset")
 load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@tbhb_rules//format:defs.bzl", "format", "format_test")
 load(
     "@tbhb_rules//lint:defs.bzl",
@@ -25,6 +26,16 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files")
+load(
+    "@tbhb_rules_typescript//:defs.bzl",
+    "biome_test",
+    "depcruise_test",
+    "eslint_test",
+    "knip_test",
+    "stryker_test",
+    "tsc_test",
+    "vitest_test",
+)
 load("//:vale_packages.bzl", "VALE_PACKAGES")
 
 # Generates preset.bazelrc, which .bazelrc imports. The content depends on the
@@ -97,6 +108,67 @@ repo_files(
         ".vale/config/scripts/**",
         ".vale/config/templates/**",
     ],
+)
+
+# The Worker's own npm packages, which the TypeScript checks read.
+npm_link_all_packages(name = "node_modules")
+
+# The Worker project: its sources, tests and tool configs.
+WORKER = glob(["src/**"]) + [
+    ".dependency-cruiser.cjs",
+    "biome.json",
+    "eslint.config.mjs",
+    "knip.json",
+    "package.json",
+    "stryker.config.mjs",
+    "tsconfig.json",
+    "vitest.config.mjs",
+    "wrangler.jsonc",
+]
+
+# The TypeScript gates, from tbhb_rules_typescript, each over a copy of the
+# Worker project with its node_modules linked in.
+tsc_test(
+    name = "tsc_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+)
+
+biome_test(
+    name = "biome_test",
+    srcs = WORKER,
+)
+
+eslint_test(
+    name = "eslint_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+)
+
+knip_test(
+    name = "knip_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+)
+
+depcruise_test(
+    name = "depcruise_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+)
+
+vitest_test(
+    name = "vitest_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+)
+
+# stryker.config.mjs sets concurrency 2; the tag gives the test those CPUs.
+stryker_test(
+    name = "stryker_test",
+    srcs = WORKER,
+    node_modules = [":node_modules"],
+    tags = ["cpu:2"],
 )
 
 # Whole-tree gates over //:repo_files, from tbhb_rules. Each test runs its

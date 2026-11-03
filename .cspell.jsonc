@@ -10,6 +10,7 @@
     "LICENSE",
     "MODULE.bazel.lock",
     "mise.lock",
+    "pnpm-lock.yaml",
     "tmp/**/*",
     "tools/testdata/**/*",
     "uv.lock"

@@ -1,0 +1,12 @@
+{
+  "name": "bazel-r2-cache",
+  "private": true,
+  "type": "module",
+  "description": "A Bazel HTTP remote cache served by a Cloudflare Worker over R2. The tools (TypeScript, Biome, ESLint, Vitest, Stryker) come from tbhb_rules_typescript, not from here.",
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261103.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}

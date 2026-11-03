@@ -1,0 +1,10 @@
+{
+  "linter": {
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "formatter": {
+    "indentStyle": "space"
+  }
+}

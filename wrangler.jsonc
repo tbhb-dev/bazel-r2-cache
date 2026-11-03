@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+//
+// The Worker in each environment. The ops repository's OpenTofu owns the
+// buckets and the custom domains (bazel-cache-stg.tbhb.dev and
+// bazel-cache.tbhb.dev), so wrangler manages no routes and serves nothing
+// on workers.dev. READ_TOKEN and WRITE_TOKEN are Worker secrets.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bazel-r2-cache",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "env": {
+    "stg": {
+      "name": "bazel-r2-cache-stg",
+      "workers_dev": false,
+      "r2_buckets": [
+        { "binding": "CACHE", "bucket_name": "bazel-r2-cache-stg" }
+      ]
+    },
+    "prd": {
+      "name": "bazel-r2-cache-prd",
+      "workers_dev": false,
+      "r2_buckets": [
+        { "binding": "CACHE", "bucket_name": "bazel-r2-cache-prd" }
+      ]
+    }
+  }
+}
