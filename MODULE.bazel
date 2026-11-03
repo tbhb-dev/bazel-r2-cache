@@ -13,7 +13,7 @@ module(name = "bazel_r2_cache_dev")
 bazel_dep(name = "tbhb_rules", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules",
-    commit = "4ec23a5cc731cc5f9091e805e9dd0d0eb786847b",
+    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
     remote = "https://github.com/tbhb-dev/rules.git",
 )
 
@@ -23,7 +23,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_python", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_python",
-    commit = "4ec23a5cc731cc5f9091e805e9dd0d0eb786847b",
+    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "python",
 )
@@ -31,12 +31,12 @@ git_override(
 # The TypeScript checks (tsc, Biome, typescript-eslint, knip,
 # dependency-cruiser, Vitest, Stryker and pnpm audit), a nested module of the
 # same repository with its own pinned toolchain. Same pin as tbhb_rules
-# (main after tbhb-dev/rules#24);
+# (main after tbhb-dev/rules#22);
 # locally, `common --override_module=tbhb_rules_typescript=../rules/typescript`.
 bazel_dep(name = "tbhb_rules_typescript", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_typescript",
-    commit = "4ec23a5cc731cc5f9091e805e9dd0d0eb786847b",
+    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "typescript",
 )
@@ -47,7 +47,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_cloudflare", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_cloudflare",
-    commit = "4ec23a5cc731cc5f9091e805e9dd0d0eb786847b",
+    commit = "e8ef0bce64b59c35d92934d443838ca055603bcf",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "cloudflare",
 )
