@@ -13,7 +13,7 @@ module(name = "bazel_r2_cache_dev")
 bazel_dep(name = "tbhb_rules", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules",
-    commit = "13e3968730e7ebfea73ccd96eb0110f4dccf7bcb",
+    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
     remote = "https://github.com/tbhb-dev/rules.git",
 )
 
@@ -23,7 +23,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_python", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_python",
-    commit = "13e3968730e7ebfea73ccd96eb0110f4dccf7bcb",
+    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "python",
 )
@@ -35,7 +35,7 @@ git_override(
 bazel_dep(name = "tbhb_rules_typescript", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules_typescript",
-    commit = "13e3968730e7ebfea73ccd96eb0110f4dccf7bcb",
+    commit = "1dbcdad1bbadb87d2660100cff615285ab0d38a4",
     remote = "https://github.com/tbhb-dev/rules.git",
     strip_prefix = "typescript",
 )
