@@ -2,7 +2,6 @@
 # Copyright Tony Burns
 
 load("@bazel_env.bzl", "bazel_env")
-load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazelrc-preset.bzl", "bazelrc_preset")
 load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
 load("@npm//:defs.bzl", "npm_link_all_packages")
@@ -131,8 +130,8 @@ WORKER = glob(["src/**"]) + [
 ]
 
 # The handler's sources, for //e2e:check_test, which serves them from Node.
-copy_to_bin(
-    name = "worker_sources",
+filegroup(
+    name = "worker_srcs",
     srcs = glob(
         ["src/*.ts"],
         exclude = ["src/*.test.ts"],
