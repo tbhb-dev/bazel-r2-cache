@@ -111,7 +111,7 @@ describe("the pull request header", () => {
     "is refused with %s",
     async (token) => {
       const response = await handle(
-        request("GET", `/ac/${HELLO}`, { token, pr: "42" }),
+        request("GET", `/ac/${HELLO}`, { token, pr: "o/r/42" }),
         env,
       );
       expect(response.status).toBe(400);
@@ -121,32 +121,72 @@ describe("the pull request header", () => {
     },
   );
 
-  it.each(["0", "042", "-1", "4.2", "abc", "1234567890", "", "4 2"])(
-    "must be a number, not %j",
-    async (pr) => {
-      const response = await handle(
-        request("PUT", `/ac/${HELLO}`, { token: "pr-secret", pr, body: "x" }),
-        env,
-      );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toBe(
-        `${PR_HEADER} must be a pull request number`,
-      );
-      expect(store.objects.size).toBe(0);
-    },
-  );
+  it.each([
+    "42",
+    "o/r",
+    "o/r/0",
+    "o/r/042",
+    "o/r/-1",
+    "o/r/4.2",
+    "o/r/1234567890",
+    "o/r/4 2",
+    "o/r/42/x",
+    "o//42",
+    "/r/42",
+    "-o/r/42",
+    "o.x/r/42",
+    `${"o".repeat(40)}/r/42`,
+    `o/${"r".repeat(101)}/42`,
+    "o/./42",
+    "o/../42",
+    "o/r#1/42",
+    "",
+  ])("must be owner/repo/number, not %j", async (pr) => {
+    const response = await handle(
+      request("PUT", `/ac/${HELLO}`, { token: "pr-secret", pr, body: "x" }),
+      env,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe(
+      `${PR_HEADER} must be owner/repo/number`,
+    );
+    expect(store.objects.size).toBe(0);
+  });
 
   it("accepts nine digits", async () => {
     const response = await handle(
       request("PUT", `/ac/${HELLO}`, {
         token: "pr-secret",
-        pr: "123456789",
+        pr: "o/r/123456789",
         body: "x",
       }),
       env,
     );
     expect(response.status).toBe(200);
-    expect(stored(`ac/pr/123456789/${HELLO}`)).toBe("x");
+    expect(stored(`ac/pr/o/r/123456789/${HELLO}`)).toBe("x");
+  });
+
+  it("files the entry under the repository in lowercase", async () => {
+    const response = await handle(
+      request("PUT", `/ac/${HELLO}`, {
+        token: "pr-secret",
+        pr: "TBHB-dev/.Bazel_R2-cache/7",
+        body: "x",
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(stored(`ac/pr/tbhb-dev/.bazel_r2-cache/7/${HELLO}`)).toBe("x");
+  });
+
+  it("keeps the same number in two repositories apart", async () => {
+    put(`ac/pr/o/a/3/${HELLO}`, "repository a");
+    put(`ac/main/${HELLO}`, "main");
+    const get = await handle(
+      request("GET", `/ac/${HELLO}`, { token: "pr-secret", pr: "o/b/3" }),
+      env,
+    );
+    expect(await get.text()).toBe("main");
   });
 });
 
@@ -172,7 +212,7 @@ describe("reads", () => {
   });
 
   it("answers 404 for a missing entry", async () => {
-    put(`ac/pr/1/${HELLO}`, "elsewhere");
+    put(`ac/pr/o/r/1/${HELLO}`, "elsewhere");
     const response = await handle(
       request("GET", `/ac/${HELLO}`, { token: "read-secret" }),
       env,
@@ -196,9 +236,9 @@ describe("reads", () => {
   });
 
   it("gives a pull request its own entry before main's", async () => {
-    put(`ac/pr/7/${HELLO}`, "own");
+    put(`ac/pr/o/r/7/${HELLO}`, "own");
     put(`ac/main/${HELLO}`, "main");
-    const pr = { token: "pr-secret", pr: "7" };
+    const pr = { token: "pr-secret", pr: "o/r/7" };
     const get = await handle(request("GET", `/ac/${HELLO}`, pr), env);
     expect(await get.text()).toBe("own");
     const head = await handle(request("HEAD", `/ac/${HELLO}`, pr), env);
@@ -206,9 +246,9 @@ describe("reads", () => {
   });
 
   it("falls back to main's entry for a pull request", async () => {
-    put(`ac/pr/8/${HELLO}`, "another pull request");
+    put(`ac/pr/o/r/8/${HELLO}`, "another pull request");
     put(`ac/main/${HELLO}`, "main");
-    const pr = { token: "pr-secret", pr: "7" };
+    const pr = { token: "pr-secret", pr: "o/r/7" };
     const get = await handle(request("GET", `/ac/${HELLO}`, pr), env);
     expect(await get.text()).toBe("main");
     const head = await handle(request("HEAD", `/ac/${HELLO}`, pr), env);
@@ -244,7 +284,7 @@ describe("writes", () => {
     const response = await handle(
       request("PUT", `/cas/${OTHER}`, {
         token: "pr-secret",
-        pr: "1",
+        pr: "o/r/1",
         body: "hello",
       }),
       env,
@@ -256,7 +296,7 @@ describe("writes", () => {
 
   it.each([
     ["main-secret", undefined, `ac/main/${OTHER}`],
-    ["pr-secret", "42", `ac/pr/42/${OTHER}`],
+    ["pr-secret", "o/r/42", `ac/pr/o/r/42/${OTHER}`],
     ["e2e-secret", undefined, `e2e/ac/${OTHER}`],
   ])(
     "stores %s's action cache entries in its namespace",

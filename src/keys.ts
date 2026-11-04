@@ -19,14 +19,15 @@ export interface Namespace {
 }
 
 /**
- * The keys a role uses for one entry. `pr` is the pull request number,
- * which only the pr role uses.
+ * The keys a role uses for one entry. `pr` is the pull request, as
+ * `owner/repo/number` in lowercase, which only the pr role uses; without
+ * one, the pr role only reads main's entries.
  */
 export function namespace(
   role: Role,
   kind: Kind,
   digest: string,
-  pr: number,
+  pr: string | null,
 ): Namespace {
   if (role === "e2e") {
     const key = `e2e/${kind}/${digest}`;
@@ -38,8 +39,8 @@ export function namespace(
     return { reads: [key], write: role === "read" ? null : key };
   }
   const main = `ac/main/${digest}`;
-  if (role === "pr") {
-    const own = `ac/pr/${String(pr)}/${digest}`;
+  if (role === "pr" && pr !== null) {
+    const own = `ac/pr/${pr}/${digest}`;
     return { reads: [own, main], write: own };
   }
   return { reads: [main], write: role === "main" ? main : null };
