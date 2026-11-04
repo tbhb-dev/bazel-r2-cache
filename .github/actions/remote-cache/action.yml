@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Points the job's Bazel at the bazel-r2-cache remote cache. Every Bazel
+# repository's CI uses this action, pinned by commit, so the setup lives in
+# one place. The token goes to a mode-600 file that a credential helper
+# reads, so it never appears in a flag or the build's logs. An empty token,
+# as a fork's pull request gets, leaves the cache off.
+name: Use the bazel-r2-cache remote cache
+description: Configure Bazel to read and write the bazel-r2-cache remote cache.
+
+inputs:
+  token:
+    description: >-
+      The cache token: the main token on a push to main, the org's PR token
+      on a pull request. Empty builds without the cache.
+    required: true
+  pull-request:
+    description: >-
+      The pull request number, on a pull request, so its entries go to its
+      own namespace. Required with the PR token.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Use the remote cache
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        PULL_REQUEST: ${{ inputs.pull-request }}
+      run: |
+        if [[ -z "${TOKEN}" ]]; then
+          echo "::notice::no cache token for this run; building without the remote cache"
+          exit 0
+        fi
+        dir="${RUNNER_TEMP}/bazel-cache"
+        mkdir -p "${dir}"
+        chmod 700 "${dir}"
+        (umask 077 && printf '%s' "${TOKEN}" > "${dir}/token")
+        cat > "${dir}/credential-helper" <<'HELPER'
+        #!/bin/sh
+        cat >/dev/null
+        printf '{"headers":{"Authorization":["Bearer %s"]}}\n' "$(cat "$(dirname "$0")/token")"
+        HELPER
+        chmod 700 "${dir}/credential-helper"
+        {
+          echo "common --remote_cache=https://bazel-cache.tbhb.dev"
+          echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
+          if [[ -n "${PULL_REQUEST}" ]]; then
+            echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST}"
+          fi
+        } >> "${HOME}/.bazelrc"
