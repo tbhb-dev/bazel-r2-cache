@@ -43,5 +43,10 @@ export function namespace(
     const own = `ac/pr/${pr}/${digest}`;
     return { reads: [own, main], write: own };
   }
+  // Hosts share their results with each other, but nothing else reads
+  // them, so a host's result never reaches CI or a deploy.
+  if (role === "host") {
+    return { reads: [main, `ac/host/${digest}`], write: `ac/host/${digest}` };
+  }
   return { reads: [main], write: role === "main" ? main : null };
 }

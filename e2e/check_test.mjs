@@ -78,6 +78,7 @@ function check(
 const env = {
   CACHE: new MemoryStore(),
   READ_TOKENS: "",
+  HOST_TOKENS: "",
   MAIN_TOKEN: "",
   PR_TOKEN: "",
   E2E_TOKEN: E2E,
