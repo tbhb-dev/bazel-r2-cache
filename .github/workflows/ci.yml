@@ -59,35 +59,13 @@ jobs:
           disk-cache: ${{ (github.event_name == 'push' && github.workflow == 'ci') && 'false' || 'ci' }}
           cache-save: ${{ github.event_name != 'pull_request' }}
 
-      # The bazel-r2-cache remote cache. The token goes to a mode-600 file
-      # that a credential helper reads, so it never appears in a flag or the
-      # build's logs. A fork's pull request gets no secrets and builds
-      # without the cache.
+      # The bazel-r2-cache remote cache, through its shared action. A fork's
+      # pull request gets no secrets and builds without the cache.
       - name: Use the remote cache
-        env:
-          TOKEN: ${{ github.event_name == 'push' && secrets.BAZEL_CACHE_TOKEN || secrets.BAZEL_CACHE_PR_TOKEN }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-        run: |
-          if [[ -z "${TOKEN}" ]]; then
-            echo "::notice::no cache token for this run; building without the remote cache"
-            exit 0
-          fi
-          dir="${RUNNER_TEMP}/bazel-cache"
-          install -d -m 700 "${dir}"
-          (umask 077 && printf '%s' "${TOKEN}" > "${dir}/token")
-          cat > "${dir}/credential-helper" <<'HELPER'
-          #!/bin/sh
-          cat >/dev/null
-          printf '{"headers":{"Authorization":["Bearer %s"]}}\n' "$(cat "$(dirname "$0")/token")"
-          HELPER
-          chmod 700 "${dir}/credential-helper"
-          {
-            echo "common --remote_cache=https://bazel-cache.tbhb.dev"
-            echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
-            if [[ -n "${PULL_REQUEST}" ]]; then
-              echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST}"
-            fi
-          } >> "${HOME}/.bazelrc"
+        uses: ./.github/actions/remote-cache
+        with:
+          token: ${{ github.event_name == 'push' && secrets.BAZEL_CACHE_TOKEN || secrets.BAZEL_CACHE_PR_TOKEN }}
+          pull-request: ${{ github.event.pull_request.number }}
 
       # //... covers the @tbhb_rules lint, format, shell and docs tests over
       # the whole tree, the buildifier_test, and the preset.update_test that
@@ -107,6 +85,36 @@ jobs:
             .bazel-testlogs/**/test.xml
           include-hidden-files: true
           if-no-files-found: ignore
+
+  # Fills the shared cache for macOS hosts: cache keys include the
+  # platform, so the Linux job's entries never hit on a Mac. It runs only in
+  # the push to main run that writes the cache, and no gate needs it.
+  # Standard macOS runners are free for public repositories.
+  cache-macos:
+    name: cache-macos
+    if: github.event_name == 'push' && github.workflow == 'ci'
+    runs-on: macos-15
+    timeout-minutes: 30
+    environment: cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No disk cache: Bazel uploads only the results it runs.
+      - name: Set up Bazel for CI
+        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@2115a5f30f371e7955612cf1f0c31bd7e81633f9  # main
+        with:
+          disk-cache: false
+
+      - name: Use the remote cache
+        uses: ./.github/actions/remote-cache
+        with:
+          token: ${{ secrets.BAZEL_CACHE_TOKEN }}
+
+      - name: Test
+        run: bazelisk test --config=ci //...
 
   # The repository-level checks, beside the bazel job, so they don't wait
   # behind the tests: MODULE.bazel tidiness, the Git history scan, zizmor's
