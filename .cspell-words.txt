@@ -3,6 +3,7 @@
 addopts
 ascm
 autouse
+awrel
 bazelignore
 bazelisk
 bazelrc
@@ -72,6 +73,7 @@ localmodule
 lockfiles
 mapfile
 mapliteral
+mcpjson
 mdfile
 mdir
 msgfile
