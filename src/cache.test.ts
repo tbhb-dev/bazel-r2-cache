@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Tony Burns
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type CacheEnv, handle, PR_HEADER } from "./cache.ts";
 import worker, { type Env, VERSION_HEADER } from "./index.ts";
 import { MemoryStore } from "./testing.ts";
@@ -278,6 +278,28 @@ describe("writes", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("");
     expect(stored(`cas/${HELLO}`)).toBe("hello");
+  });
+
+  it("skips writing a blob that is already stored", async () => {
+    put(`cas/${HELLO}`, "hello");
+    const write = vi.spyOn(store, "put");
+    const response = await handle(
+      request("PUT", `/cas/${HELLO}`, { body: "hello" }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("replaces a stored action cache entry", async () => {
+    put(`ac/main/${HELLO}`, "old");
+    const response = await handle(
+      request("PUT", `/ac/${HELLO}`, { body: "new" }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(stored(`ac/main/${HELLO}`)).toBe("new");
   });
 
   it("rejects a blob whose body doesn't match its digest", async () => {
