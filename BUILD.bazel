@@ -150,10 +150,11 @@ worker_types_test(
 # `bazel run //:deploy_stg` (then prd) deploys the Worker: the new version
 # runs //e2e:check at 0% through the version override, then again on the
 # live URL after it takes all traffic. The workflow supplies the Cloudflare
-# credentials and the four token secrets from 1Password; the check sees
+# credentials and the five token secrets from 1Password; the check sees
 # only E2E_TOKEN. Each environment's first deploy is a manual bootstrap.
 TOKEN_SECRETS = {
     "E2E_TOKEN": "E2E_TOKEN",
+    "HOST_TOKENS": "HOST_TOKENS",
     "MAIN_TOKEN": "MAIN_TOKEN",
     "PR_TOKEN": "PR_TOKEN",
     "READ_TOKENS": "READ_TOKENS",

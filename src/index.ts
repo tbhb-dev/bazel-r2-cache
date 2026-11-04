@@ -13,6 +13,7 @@ export const VERSION_HEADER = "Bazel-Cache-Worker-Version";
 export interface Env {
   readonly CACHE: R2Bucket;
   readonly READ_TOKENS: string;
+  readonly HOST_TOKENS: string;
   readonly MAIN_TOKEN: string;
   readonly PR_TOKEN: string;
   readonly E2E_TOKEN: string;

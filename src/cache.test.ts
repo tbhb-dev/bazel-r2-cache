@@ -19,6 +19,7 @@ beforeEach(() => {
   env = {
     CACHE: store,
     READ_TOKENS: "read-secret",
+    HOST_TOKENS: "host-secret",
     MAIN_TOKEN: "main-secret",
     PR_TOKEN: "pr-secret",
     E2E_TOKEN: "e2e-secret",
@@ -107,7 +108,7 @@ describe("the pull request header", () => {
     );
   });
 
-  it.each(["read-secret", "main-secret", "e2e-secret"])(
+  it.each(["read-secret", "main-secret", "host-secret", "e2e-secret"])(
     "is refused with %s",
     async (token) => {
       const response = await handle(
@@ -255,6 +256,34 @@ describe("reads", () => {
     expect(head.headers.get("Content-Length")).toBe("4");
   });
 
+  it("gives a host main's entry before the hosts'", async () => {
+    put(`ac/main/${HELLO}`, "main");
+    put(`ac/host/${HELLO}`, "host");
+    const host = { token: "host-secret" };
+    const get = await handle(request("GET", `/ac/${HELLO}`, host), env);
+    expect(await get.text()).toBe("main");
+  });
+
+  it("falls back to the hosts' entry for a host", async () => {
+    put(`ac/host/${HELLO}`, "host");
+    const host = { token: "host-secret" };
+    const get = await handle(request("GET", `/ac/${HELLO}`, host), env);
+    expect(await get.text()).toBe("host");
+    const head = await handle(request("HEAD", `/ac/${HELLO}`, host), env);
+    expect(head.headers.get("Content-Length")).toBe("4");
+  });
+
+  it.each([
+    ["read-secret", undefined],
+    ["main-secret", undefined],
+    ["pr-secret", "o/r/7"],
+  ])("keeps the hosts' entries from %s", async (token, pr) => {
+    put(`ac/host/${HELLO}`, "host");
+    const options = pr === undefined ? { token } : { token, pr };
+    const get = await handle(request("GET", `/ac/${HELLO}`, options), env);
+    expect(get.status).toBe(404);
+  });
+
   it("keeps the end-to-end tests to their own namespace", async () => {
     put(`ac/main/${HELLO}`, "main");
     put(`cas/${HELLO}`, "hello");
@@ -297,6 +326,7 @@ describe("writes", () => {
   it.each([
     ["main-secret", undefined, `ac/main/${OTHER}`],
     ["pr-secret", "o/r/42", `ac/pr/o/r/42/${OTHER}`],
+    ["host-secret", undefined, `ac/host/${OTHER}`],
     ["e2e-secret", undefined, `e2e/ac/${OTHER}`],
   ])(
     "stores %s's action cache entries in its namespace",
@@ -314,6 +344,14 @@ describe("writes", () => {
       expect(stored(key)).toBe("result");
     },
   );
+
+  it("stores a host's blob in the shared pool", async () => {
+    await handle(
+      request("PUT", `/cas/${HELLO}`, { token: "host-secret", body: "hello" }),
+      env,
+    );
+    expect([...store.objects.keys()]).toEqual([`cas/${HELLO}`]);
+  });
 
   it("stores an end-to-end blob in its namespace", async () => {
     await handle(
