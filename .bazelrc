@@ -13,4 +13,9 @@ common --lockfile_mode=error
 # to, so the declared minimums stay honest.
 common --check_direct_dependencies=error
 
+# Dot-prefix the convenience symlinks (.bazel-bin, .bazel-out, .bazel-testlogs,
+# .bazel-<workspace>), so tools that skip dotfiles leave them alone instead of
+# following them into the output base.
+common --symlink_prefix=.bazel-
+
 try-import %workspace%/.bazelrc.user

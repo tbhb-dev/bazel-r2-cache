@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Tony Burns
 
-import { authorize, type Tokens } from "./auth.ts";
+import { authorize, type Role, type Tokens } from "./auth.ts";
 import { sha256Hex } from "./digest.ts";
-import { type Kind, namespace } from "./keys.ts";
+import { type Kind, type Namespace, namespace } from "./keys.ts";
 
 /** The part of an R2 bucket the cache uses. */
 export interface BlobStore {
@@ -52,6 +52,64 @@ function status(
   return new Response(text, { status: code, headers });
 }
 
+// The response that refuses a request's pull request header, or null when
+// the header fits the role: the pr role must send one, as owner/repo/number,
+// and no other role may.
+function refusePullRequest(role: Role, header: string | null): Response | null {
+  if ((role === "pr") !== (header !== null)) {
+    return status(400, `${PR_HEADER} goes with a pr token, and only with one`);
+  }
+  if (header !== null && pullRequest(header) === null) {
+    return status(400, `${PR_HEADER} must be owner/repo/number`);
+  }
+  return null;
+}
+
+async function get(keys: Namespace, env: CacheEnv): Promise<Response> {
+  for (const key of keys.reads) {
+    const object = await env.CACHE.get(key);
+    if (object !== null) {
+      return new Response(object.body, {
+        headers: { "Content-Length": String(object.size) },
+      });
+    }
+  }
+  return status(404, "not found");
+}
+
+async function head(keys: Namespace, env: CacheEnv): Promise<Response> {
+  for (const key of keys.reads) {
+    const object = await env.CACHE.head(key);
+    if (object !== null) {
+      return new Response(null, {
+        headers: { "Content-Length": String(object.size) },
+      });
+    }
+  }
+  return new Response(null, { status: 404 });
+}
+
+async function put(
+  request: Request,
+  kind: Kind,
+  digest: string,
+  keys: Namespace,
+  env: CacheEnv,
+): Promise<Response> {
+  if (keys.write === null) {
+    return status(403, "forbidden");
+  }
+  const body = await request.arrayBuffer();
+  // A blob is stored under its own digest, so any writer can add one
+  // safely; an action cache entry can't be checked this way, so each
+  // role writes only its own namespace.
+  if (kind === "cas" && (await sha256Hex(body)) !== digest) {
+    return status(400, "body does not match its digest");
+  }
+  await env.CACHE.put(keys.write, body);
+  return status(200, "");
+}
+
 /** Serves one Bazel HTTP cache request against `env`. */
 export async function handle(
   request: Request,
@@ -67,52 +125,20 @@ export async function handle(
     return status(401, "unauthorized", { "WWW-Authenticate": "Bearer" });
   }
   const prHeader = request.headers.get(PR_HEADER);
-  if ((role === "pr") !== (prHeader !== null)) {
-    return status(400, `${PR_HEADER} goes with a pr token, and only with one`);
-  }
-  const pr = prHeader === null ? null : pullRequest(prHeader);
-  if (prHeader !== null && pr === null) {
-    return status(400, `${PR_HEADER} must be owner/repo/number`);
+  const refusal = refusePullRequest(role, prHeader);
+  if (refusal !== null) {
+    return refusal;
   }
   // Only the pr role reads the pull request; the others ignore it.
+  const pr = prHeader === null ? null : pullRequest(prHeader);
   const keys = namespace(role, kind, digest, pr);
   switch (request.method) {
-    case "GET": {
-      for (const key of keys.reads) {
-        const object = await env.CACHE.get(key);
-        if (object !== null) {
-          return new Response(object.body, {
-            headers: { "Content-Length": String(object.size) },
-          });
-        }
-      }
-      return status(404, "not found");
-    }
-    case "HEAD": {
-      for (const key of keys.reads) {
-        const object = await env.CACHE.head(key);
-        if (object !== null) {
-          return new Response(null, {
-            headers: { "Content-Length": String(object.size) },
-          });
-        }
-      }
-      return new Response(null, { status: 404 });
-    }
-    case "PUT": {
-      if (keys.write === null) {
-        return status(403, "forbidden");
-      }
-      const body = await request.arrayBuffer();
-      // A blob is stored under its own digest, so any writer can add one
-      // safely; an action cache entry can't be checked this way, so each
-      // role writes only its own namespace.
-      if (kind === "cas" && (await sha256Hex(body)) !== digest) {
-        return status(400, "body does not match its digest");
-      }
-      await env.CACHE.put(keys.write, body);
-      return status(200, "");
-    }
+    case "GET":
+      return get(keys, env);
+    case "HEAD":
+      return head(keys, env);
+    case "PUT":
+      return put(request, kind, digest, keys, env);
     default:
       return status(405, "method not allowed", { Allow: "GET, HEAD, PUT" });
   }

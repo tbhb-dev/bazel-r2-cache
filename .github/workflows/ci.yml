@@ -43,25 +43,20 @@ jobs:
     # org's PR token, which writes only their own namespace.
     environment: ${{ github.event_name == 'push' && github.workflow == 'ci' && 'cache' || '' }}
     steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
 
-      # The run that fills the shared remote cache skips the disk cache:
-      # Bazel uploads only the results it runs, never a disk cache hit, so
-      # that run runs every action.
-      - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+      # The shared setup hardens the runner, sets up Bazel with the bazelisk
+      # and repository caches, and fetches //..., retrying transient
+      # failures. The run that fills the shared remote cache skips the disk
+      # cache: Bazel uploads only the results it runs, never a disk cache
+      # hit, so that run runs every action.
+      - name: Set up Bazel for CI
+        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@3cb3722018e47eee7af4219405dc138090449ecf  # main
         with:
-          bazelisk-cache: true
           disk-cache: ${{ (github.event_name == 'push' && github.workflow == 'ci') && 'false' || 'ci' }}
-          repository-cache: true
           cache-save: ${{ github.event_name != 'pull_request' }}
 
       # The bazel-r2-cache remote cache. The token goes to a mode-600 file
@@ -97,17 +92,6 @@ jobs:
       # //... covers the @tbhb_rules lint, format, shell and docs tests over
       # the whole tree, the buildifier_test, and the preset.update_test that
       # fails when preset.bazelrc is stale.
-      # Fetching hits PyPI, GitHub and the BCR mirror, which can fail for
-      # longer than Bazel's own download retries wait. Only the fetch is
-      # retried: a test failure never is.
-      - name: Fetch, retrying transient failures
-        run: |
-          for attempt in 1 2 3; do
-            bazelisk fetch --config=ci //... && break
-            if ((attempt == 3)); then exit 1; fi
-            sleep 60
-          done
-
       - name: Test
         run: bazelisk test --config=ci //...
 
@@ -119,77 +103,21 @@ jobs:
         with:
           name: testlogs
           path: |
-            bazel-testlogs/**/test.log
-            bazel-testlogs/**/test.xml
+            .bazel-testlogs/**/test.log
+            .bazel-testlogs/**/test.xml
+          include-hidden-files: true
           if-no-files-found: ignore
 
-  # The repository-level checks, beside the bazel job, so they don't
-  # wait behind the tests.
+  # The repository-level checks, beside the bazel job, so they don't wait
+  # behind the tests: MODULE.bazel tidiness, the Git history scan, the
+  # Python audit, zizmor's online audits and the CODEOWNERS API check.
   repo:
     name: repo
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          # gitleaks scans the whole history, so it needs every commit.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
-        with:
-          bazelisk-cache: true
-          repository-cache: true
-          cache-save: false
-
-      - name: Check that MODULE.bazel is tidy
-        run: |
-          bazelisk mod tidy
-          git diff --exit-code -- MODULE.bazel
-
-      # Git history is not a declared input, so the history scan runs
-      # outside the test graph; //:gitleaks_test covers the working tree.
-      - name: Scan Git history for secrets
-        run: bazelisk run //:gitleaks_history
-
-      # Advisories change without any input changing, so the audit is never
-      # a cached test.
-      - name: Audit the locked Python dependencies
-        run: bazelisk run //tools:pip_audit
-
-      # //:zizmor_test runs the offline audits; a token turns on the online
-      # ones, which need the network.
-      - name: Audit workflow security online
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          bazelisk run @tbhb_rules_zizmor//:zizmor --
-          --persona pedantic --no-progress "${GITHUB_WORKSPACE}/.github"
-
-      # //:codeowners_test checks that every pattern matches a path; owner
-      # and syntax validation needs GitHub's API.
-      - name: Check CODEOWNERS owners and syntax
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          errors="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${HEAD_SHA}" \
-            --jq '.errors')"
-          count="$(printf '%s' "${errors}" | jq 'length')"
-          if [ "${count}" -ne 0 ]; then
-            echo "::error::CODEOWNERS has ${count} owner or syntax error(s):"
-            printf '%s' "${errors}" |
-              jq -r '.[] | "  line \(.line): \(.kind): \(.message)"'
-            exit 1
-          fi
+    permissions:
+      contents: read
+    uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@3cb3722018e47eee7af4219405dc138090449ecf  # main
+    with:
+      module-dirs: .
 
   # One stable required check for branch protection. `if: always()` runs it
   # even when a needed job failed. It passes only when every needed job's
@@ -202,17 +130,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
       - name: Fail if any needed job did not succeed
-        env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: |
-          echo "$NEEDS"
-          if ! jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null; then
-            echo "A required job did not succeed." >&2
-            exit 1
-          fi
+        uses: tbhb-dev/rules/.github/actions/ci-conclusion@3cb3722018e47eee7af4219405dc138090449ecf  # main
+        with:
+          needs: ${{ toJSON(needs) }}
