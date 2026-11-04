@@ -16,11 +16,21 @@ describe("namespace", () => {
     [
       "pr",
       "ac",
-      { reads: [`ac/pr/42/${D}`, `ac/main/${D}`], write: `ac/pr/42/${D}` },
+      {
+        reads: [`ac/pr/o/r/42/${D}`, `ac/main/${D}`],
+        write: `ac/pr/o/r/42/${D}`,
+      },
     ],
     ["e2e", "cas", { reads: [`e2e/cas/${D}`], write: `e2e/cas/${D}` }],
     ["e2e", "ac", { reads: [`e2e/ac/${D}`], write: `e2e/ac/${D}` }],
   ] as const)("gives %s its %s keys", (role, kind, expected) => {
-    expect(namespace(role, kind, D, 42)).toEqual(expected);
+    expect(namespace(role, kind, D, "o/r/42")).toEqual(expected);
+  });
+
+  it("gives a pr role without a pull request main's entries, read-only", () => {
+    expect(namespace("pr", "ac", D, null)).toEqual({
+      reads: [`ac/main/${D}`],
+      write: null,
+    });
   });
 });

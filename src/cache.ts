@@ -23,13 +23,26 @@ export interface CacheEnv extends Tokens {
 const PATH = /^\/(ac|cas)\/[0-9a-f]{64}$/;
 
 /**
- * The header in which a pull request's workflow names its number, for
- * example `--remote_header=Bazel-Cache-Pull-Request=42`. Only the pr role
- * may send it, and the pr role must.
+ * The header in which a pull request's workflow names its repository and
+ * number, for example
+ * `--remote_header=Bazel-Cache-Pull-Request=tbhb-dev/bazel-r2-cache/42`.
+ * Only the pr role may send it, and the pr role must. Repositories share
+ * the pr token, so the repository keeps their pull requests apart.
  */
 export const PR_HEADER = "Bazel-Cache-Pull-Request";
 
-const PR_NUMBER = /^[1-9][0-9]{0,8}$/;
+// A GitHub owner and repository name, then the number. GitHub compares
+// names without case, so the namespace is lowercase.
+const PR_ID =
+  /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}\/[1-9][0-9]{0,8}$/;
+
+function pullRequest(header: string): string | null {
+  const repo = header.split("/")[1];
+  if (!PR_ID.test(header) || repo === "." || repo === "..") {
+    return null;
+  }
+  return header.toLowerCase();
+}
 
 function status(
   code: number,
@@ -57,11 +70,12 @@ export async function handle(
   if ((role === "pr") !== (prHeader !== null)) {
     return status(400, `${PR_HEADER} goes with a pr token, and only with one`);
   }
-  if (prHeader !== null && !PR_NUMBER.test(prHeader)) {
-    return status(400, `${PR_HEADER} must be a pull request number`);
+  const pr = prHeader === null ? null : pullRequest(prHeader);
+  if (prHeader !== null && pr === null) {
+    return status(400, `${PR_HEADER} must be owner/repo/number`);
   }
-  // Only the pr role reads the number; the others ignore it.
-  const keys = namespace(role, kind, digest, Number(prHeader));
+  // Only the pr role reads the pull request; the others ignore it.
+  const keys = namespace(role, kind, digest, pr);
   switch (request.method) {
     case "GET": {
       for (const key of keys.reads) {

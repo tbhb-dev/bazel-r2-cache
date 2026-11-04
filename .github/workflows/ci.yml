@@ -86,7 +86,7 @@ jobs:
             echo "common --remote_cache=https://bazel-cache.tbhb.dev"
             echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
             if [[ -n "${PULL_REQUEST}" ]]; then
-              echo "common --remote_header=Bazel-Cache-Pull-Request=${PULL_REQUEST}"
+              echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST}"
             fi
           } >> "${HOME}/.bazelrc"
 
