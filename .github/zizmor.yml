@@ -26,8 +26,7 @@ rules:
       - ci.yml
       - renovate.yaml
       - renovate-config-validator.yaml
-  # Off until actionlint accepts GitHub's `$/` self-repository syntax
-  # (actionlint issue 711), which zizmor asks for in place of `./`; then
-  # bump actionlint and switch every local `uses:` to `$/`.
+  # Off until actionlint accepts the `$/` self-repository syntax
+  # (rhysd/actionlint#711); then bump actionlint and switch to `$/`.
   self-repository:
     disable: true
