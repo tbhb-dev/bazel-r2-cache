@@ -122,6 +122,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ steps.secrets.outputs.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ steps.secrets.outputs.CLOUDFLARE_ACCOUNT_ID }}
           READ_TOKENS: ${{ steps.secrets.outputs.READ_TOKENS }}
+          HOST_TOKENS: ${{ steps.secrets.outputs.HOST_TOKENS }}
           MAIN_TOKEN: ${{ steps.secrets.outputs.MAIN_TOKEN }}
           PR_TOKEN: ${{ steps.secrets.outputs.PR_TOKEN }}
           E2E_TOKEN: ${{ steps.secrets.outputs.E2E_TOKEN }}
