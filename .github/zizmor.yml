@@ -23,9 +23,7 @@ rules:
     ignore:
       - renovate.yaml
       - renovate-config-validator.yaml
-  # GitHub's `$/` self-repository syntax is the safer form for the shared
-  # cache action, but the pinned actionlint rejects it as a missing ref.
-  # Drop this once actionlint accepts `$/`.
+  # Off until actionlint accepts the `$/` self-repository syntax
+  # (rhysd/actionlint#711); then bump actionlint and switch to `$/`.
   self-repository:
-    ignore:
-      - ci.yml
+    disable: true

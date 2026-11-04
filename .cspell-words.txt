@@ -102,6 +102,7 @@ prek
 pretooluse
 pylock
 recvcheck
+rhysd
 rollouts
 rollup
 rumdl
