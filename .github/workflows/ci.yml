@@ -10,18 +10,15 @@
 name: ci
 
 # On main, the deploy workflow runs these same jobs before it deploys,
-# rather than reacting to this workflow's result.
+# rather than reacting to this workflow's result. A push to main also runs
+# this workflow on its own, only to fill the shared remote cache: a job in
+# a reusable workflow doesn't get its environment's secrets, so the run
+# that deploy calls builds without the main token.
 on:
   pull_request:
-  # The deploy workflow runs CI on each push to main. A reusable workflow
-  # sees only the secrets it declares; the bazel job's `cache` environment
-  # supplies BAZEL_CACHE_TOKEN, which no caller passes.
+  push:
+    branches: [main]
   workflow_call:
-    secrets:
-      BAZEL_CACHE_TOKEN:
-        required: false
-      BAZEL_CACHE_PR_TOKEN:
-        required: false
 
 permissions:
   contents: read
@@ -38,11 +35,12 @@ jobs:
   bazel:
     name: bazel
     runs-on: ubuntu-24.04
-    # Pushes to main (through the deploy workflow) write the shared action
+    # The push to main run (not the one deploy calls, which has
+    # `github.workflow` set to the caller's name) writes the shared action
     # cache with the main token, a secret of the main-only `cache`
     # environment that no pull request can read. Pull requests use the
     # org's PR token, which writes only their own namespace.
-    environment: ${{ github.event_name == 'push' && 'cache' || '' }}
+    environment: ${{ github.event_name == 'push' && github.workflow == 'ci' && 'cache' || '' }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
