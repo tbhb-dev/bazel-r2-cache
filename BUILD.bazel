@@ -278,6 +278,7 @@ editorconfig_checker_test(
 actionlint_test(
     name = "actionlint_test",
     srcs = [":repo_files"],
+    config = ".github/actionlint.yaml",
 )
 
 # Offline audits. The online ones need a token and the network; CI runs
