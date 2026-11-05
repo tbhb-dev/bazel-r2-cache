@@ -32,7 +32,7 @@ jobs:
   stg:
     name: stg
     needs: ci
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: stg
     # A cancelled deploy tries to put the previous version back, but the
     # runner may stop it first; let a deploy finish, within its own
@@ -142,7 +142,7 @@ jobs:
     name: prd
     needs: stg
     if: needs.stg.outputs.deployed == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: prd
     timeout-minutes: 45
     concurrency:
