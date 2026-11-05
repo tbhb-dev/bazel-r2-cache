@@ -34,7 +34,7 @@ jobs:
   # repo job.
   bazel:
     name: bazel
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     # The push to main run (not the one deploy calls, which has
     # `github.workflow` set to the caller's name) writes the shared action
@@ -127,7 +127,7 @@ jobs:
     name: conclusion
     if: always()
     needs: [bazel, repo]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Fail if any needed job did not succeed
