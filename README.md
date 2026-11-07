@@ -6,7 +6,6 @@ A Bazel HTTP remote cache served by a Cloudflare Worker over R2, shared by the t
 
 ```sh
 mise install
-uv sync
 bazelisk run //:bazel_env
 tbhbdev alpha install
 bazelisk test //...

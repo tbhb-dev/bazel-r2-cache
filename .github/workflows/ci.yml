@@ -109,8 +109,8 @@ jobs:
           if-no-files-found: ignore
 
   # The repository-level checks, beside the bazel job, so they don't wait
-  # behind the tests: MODULE.bazel tidiness, the Git history scan, the
-  # Python audit, zizmor's online audits and the CODEOWNERS API check.
+  # behind the tests: MODULE.bazel tidiness, the Git history scan, zizmor's
+  # online audits and the CODEOWNERS API check. There is no Python to audit.
   repo:
     name: repo
     permissions:
@@ -118,6 +118,7 @@ jobs:
     uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@03f1187861480af99871b1df89741569522c2158  # main
     with:
       module-dirs: .
+      pip-audit-target: ""
 
   # One stable required check for branch protection. `if: always()` runs it
   # even when a needed job failed. It passes only when every needed job's

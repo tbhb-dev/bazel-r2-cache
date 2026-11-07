@@ -9,9 +9,7 @@
   extends: [
     "github>tbhb-dev/renovate-config//default.json5#a475723d9575aa4300f46570c7a9faf0092a252b", // main
     "github>tbhb-dev/renovate-config//bazel.json5#a475723d9575aa4300f46570c7a9faf0092a252b", // main
-    "github>tbhb-dev/renovate-config//python.json5#a475723d9575aa4300f46570c7a9faf0092a252b", // main
   ],
 
-  // Nothing beyond the presets yet: the Bazel pins and the uv lock are
-  // covered there.
+  // Nothing beyond the presets yet: the Bazel pins are covered there.
 }
