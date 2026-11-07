@@ -19,6 +19,8 @@ load(
     "reuse_test",
     "rumdl_test",
     "ryl_test",
+    "shellcheck_test",
+    "shfmt_test",
     "tombi_test",
     "vale_sync",
     "vale_test",
@@ -285,6 +287,21 @@ zizmor_test(
     name = "zizmor_test",
     srcs = [":repo_files"],
     config = ".github/zizmor.yml",
+)
+
+# Shell scripts, found by extension and shebang. The tree has none today;
+# allow_empty keeps the gate in place for the next script someone adds.
+shellcheck_test(
+    name = "shellcheck_test",
+    srcs = [":repo_files"],
+    allow_empty = True,
+)
+
+# shfmt reads its style from .editorconfig.
+shfmt_test(
+    name = "shfmt_test",
+    srcs = [":repo_files"],
+    allow_empty = True,
 )
 
 # Every CODEOWNERS pattern still matches a file. GitHub's owner and syntax
