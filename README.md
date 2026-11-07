@@ -8,7 +8,7 @@ A Bazel HTTP remote cache served by a Cloudflare Worker over R2, shared by the t
 mise install
 uv sync
 bazelisk run //:bazel_env
-uv run tools/interim/install.sh
+tbhbdev alpha install
 bazelisk test //...
 ```
 

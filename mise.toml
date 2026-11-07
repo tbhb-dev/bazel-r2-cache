@@ -27,7 +27,7 @@ _.path = [".bazel_env/bin"]
 
 [tools]
 bazelisk = "1.30.0"
-# Runs the interim attribution hooks and the interim PR script (uv run).
+# Runs the interim PR scripts (uv run).
 uv = "0.13.6"
 
 # Interim until the real PR tooling lands; see tools/interim/pull_request.py.
