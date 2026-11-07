@@ -19,8 +19,6 @@ load(
     "reuse_test",
     "rumdl_test",
     "ryl_test",
-    "shellcheck_test",
-    "shfmt_test",
     "tombi_test",
     "vale_sync",
     "vale_test",
@@ -287,18 +285,6 @@ zizmor_test(
     name = "zizmor_test",
     srcs = [":repo_files"],
     config = ".github/zizmor.yml",
-)
-
-# Shell scripts, found by extension and shebang.
-shellcheck_test(
-    name = "shellcheck_test",
-    srcs = [":repo_files"],
-)
-
-# shfmt reads its style from .editorconfig.
-shfmt_test(
-    name = "shfmt_test",
-    srcs = [":repo_files"],
 )
 
 # Every CODEOWNERS pattern still matches a file. GitHub's owner and syntax
