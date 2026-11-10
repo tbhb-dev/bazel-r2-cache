@@ -99,6 +99,12 @@ async function put(
   if (keys.write === null) {
     return status(403, "forbidden");
   }
+  // A stored blob is the same bytes as any upload of it, so the write
+  // is skipped: R2 bills a write at 12.5 times a read, and Bazel uploads
+  // every output, stored or not.
+  if (kind === "cas" && (await env.CACHE.head(keys.write)) !== null) {
+    return status(200, "");
+  }
   const body = await request.arrayBuffer();
   // A blob is stored under its own digest, so any writer can add one
   // safely; an action cache entry can't be checked this way, so each
