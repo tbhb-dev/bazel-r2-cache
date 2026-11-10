@@ -93,7 +93,7 @@ jobs:
   cache-macos:
     name: cache-macos
     if: github.event_name == 'push' && github.workflow == 'ci'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     environment: cache
     steps:
