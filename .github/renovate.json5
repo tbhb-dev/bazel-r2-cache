@@ -7,8 +7,9 @@
   // The presets track tbhb-dev/renovate-config's main branch, pinned by
   // commit; Renovate bumps the pins (the "renovate-config" group).
   extends: [
-    "github>tbhb-dev/renovate-config//default.json5#0d2cc84f85da0f0288f48eb2890077a8273d4e2e", // main
-    "github>tbhb-dev/renovate-config//bazel.json5#0d2cc84f85da0f0288f48eb2890077a8273d4e2e", // main
+    "github>tbhb-dev/renovate-config//default.json5#db8570694276be04a0b96740b578b1ca06f2c8f4", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#db8570694276be04a0b96740b578b1ca06f2c8f4", // main
+    "github>tbhb-dev/renovate-config//cloudflare-worker.json5#db8570694276be04a0b96740b578b1ca06f2c8f4", // main
   ],
 
   // Nothing beyond the presets yet: the Bazel pins are covered there.
