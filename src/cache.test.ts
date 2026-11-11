@@ -2,7 +2,8 @@
 // Copyright Tony Burns
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type CacheEnv, handle, PR_HEADER } from "./cache.ts";
+import { type CacheEnv, handle, MAX_UPLOAD_BYTES, PR_HEADER } from "./cache.ts";
+import { sha256Hex } from "./digest.ts";
 import worker, { type Env, VERSION_HEADER } from "./index.ts";
 import { MemoryStore } from "./testing.ts";
 
@@ -366,6 +367,53 @@ describe("writes", () => {
       expect(stored(key)).toBe("result");
     },
   );
+
+  it("caps an upload at 64 MiB", () => {
+    expect(MAX_UPLOAD_BYTES).toBe(67_108_864);
+  });
+
+  it("refuses an upload whose length is over the cap, unread", async () => {
+    const lookup = vi.spyOn(store, "head");
+    const upload = request("PUT", `/cas/${HELLO}`, { body: "hello" });
+    upload.headers.set("Content-Length", String(MAX_UPLOAD_BYTES + 1));
+    const response = await handle(upload, env);
+    expect(response.status).toBe(413);
+    expect(await response.text()).toBe(
+      `upload is larger than ${String(MAX_UPLOAD_BYTES)} bytes`,
+    );
+    expect(upload.bodyUsed).toBe(false);
+    expect(lookup).not.toHaveBeenCalled();
+    expect(store.objects.size).toBe(0);
+  });
+
+  it("refuses a body over the cap when no length is given", async () => {
+    const upload = new Request(`https://cache.test/ac/${HELLO}`, {
+      method: "PUT",
+      headers: { Authorization: "Bearer main-secret" },
+      body: new Uint8Array(MAX_UPLOAD_BYTES + 1),
+    });
+    const response = await handle(upload, env);
+    expect(response.status).toBe(413);
+    expect(store.objects.size).toBe(0);
+  });
+
+  it("stores an upload of exactly the cap", async () => {
+    const body = new Uint8Array(MAX_UPLOAD_BYTES);
+    const digest = await sha256Hex(body);
+    const upload = new Request(`https://cache.test/cas/${digest}`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer main-secret",
+        "Content-Length": String(MAX_UPLOAD_BYTES),
+      },
+      body,
+    });
+    const response = await handle(upload, env);
+    expect(response.status).toBe(200);
+    expect(store.objects.get(`cas/${digest}`)?.byteLength).toBe(
+      MAX_UPLOAD_BYTES,
+    );
+  });
 
   it("stores a host's blob in the shared pool", async () => {
     await handle(

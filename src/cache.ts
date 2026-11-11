@@ -89,6 +89,19 @@ async function head(keys: Namespace, env: CacheEnv): Promise<Response> {
   return new Response(null, { status: 404 });
 }
 
+/**
+ * The largest upload the cache stores, 64 MiB. The Worker reads an upload
+ * into memory to check its digest, and a Worker has 128 MB, so one upload
+ * stays at half of that. Outputs this large are copies of downloaded tool
+ * binaries, which Bazel rebuilds with a local copy, and each version of one
+ * would cost storage.
+ */
+export const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
+
+function tooLarge(): Response {
+  return status(413, `upload is larger than ${String(MAX_UPLOAD_BYTES)} bytes`);
+}
+
 async function put(
   request: Request,
   kind: Kind,
@@ -99,6 +112,9 @@ async function put(
   if (keys.write === null) {
     return status(403, "forbidden");
   }
+  if (Number(request.headers.get("Content-Length")) > MAX_UPLOAD_BYTES) {
+    return tooLarge();
+  }
   // A stored blob is the same bytes as any upload of it, so the write
   // is skipped: R2 bills a write at 12.5 times a read, and Bazel uploads
   // every output, stored or not.
@@ -106,6 +122,9 @@ async function put(
     return status(200, "");
   }
   const body = await request.arrayBuffer();
+  if (body.byteLength > MAX_UPLOAD_BYTES) {
+    return tooLarge();
+  }
   // A blob is stored under its own digest, so any writer can add one
   // safely; an action cache entry can't be checked this way, so each
   // role writes only its own namespace.
