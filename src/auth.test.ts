@@ -107,10 +107,75 @@ describe("authorize", () => {
     });
   });
 
-  it("keeps the first match among tokens that no repository entry holds", async () => {
-    const dup = { ...tokens, HOST_TOKENS: "reader-a" };
-    expect(await authorize("Bearer reader-a", dup)).toEqual({
+  it("refuses a token that two roles share", async () => {
+    const shared = {
+      ...tokens,
+      PR_TOKEN: "main-secret",
+      E2E_TOKEN: "host-b",
+      READ_TOKENS: "reader-a, host-a",
+    };
+    for (const token of ["main-secret", "host-b", "host-a"]) {
+      expect(await authorize(`Bearer ${token}`, shared)).toBeNull();
+    }
+    expect(await authorize("Bearer reader-a", shared)).toEqual({
       role: "read",
+      repo: null,
+    });
+  });
+
+  it("refuses a repository token that an e2e or host token shares", async () => {
+    const shared = {
+      ...tokens,
+      REPO_MAIN_TOKENS: "o/a=e2e-secret,o/b=host-a",
+    };
+    expect(await authorize("Bearer e2e-secret", shared)).toBeNull();
+    expect(await authorize("Bearer host-a", shared)).toBeNull();
+  });
+
+  it("matches a repository listed twice in different case with one token", async () => {
+    const twice = { ...tokens, REPO_MAIN_TOKENS: "O/A=t1,o/a=t1" };
+    expect(await authorize("Bearer t1", twice)).toEqual({
+      role: "main",
+      repo: "o/a",
+    });
+  });
+
+  it("matches a role listed twice with one token", async () => {
+    const twice = { ...tokens, READ_TOKENS: "reader-a, reader-a" };
+    expect(await authorize("Bearer reader-a", twice)).toEqual({
+      role: "read",
+      repo: null,
+    });
+  });
+
+  it.each(["MAIN_TOKEN", "PR_TOKEN", "E2E_TOKEN"] as const)(
+    "never matches an empty or whitespace-only %s alone",
+    async (key) => {
+      expect(await authorize("Bearer ", { ...tokens, [key]: "" })).toBeNull();
+      expect(await authorize("Bearer  ", { ...tokens, [key]: " " })).toBeNull();
+      expect(
+        await authorize("Bearer \t", { ...tokens, [key]: "\t" }),
+      ).toBeNull();
+    },
+  );
+
+  it("trims the padding off a single secret", async () => {
+    const padded = {
+      ...tokens,
+      MAIN_TOKEN: " main-secret ",
+      PR_TOKEN: "\tpr-secret",
+      E2E_TOKEN: "e2e-secret\n",
+    };
+    expect(await authorize("Bearer main-secret", padded)).toEqual({
+      role: "main",
+      repo: null,
+    });
+    expect(await authorize("Bearer pr-secret", padded)).toEqual({
+      role: "pr",
+      repo: null,
+    });
+    expect(await authorize("Bearer e2e-secret", padded)).toEqual({
+      role: "e2e",
       repo: null,
     });
   });

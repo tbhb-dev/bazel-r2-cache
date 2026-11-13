@@ -45,8 +45,9 @@ const BEARER = "Bearer ";
 /**
  * The identity of the bearer token in an `Authorization` header, or null
  * when the header is missing, malformed, or holds no known token. An unset
- * (empty) secret or list entry never matches, and neither does a token that a
- * repository entry shares with another repository entry or role.
+ * (empty) secret or list entry never matches, and neither does a token that
+ * two roles or two repositories share. The same role or repository listed
+ * twice with one token still matches.
  */
 export async function authorize(
   header: string | null,
@@ -57,9 +58,9 @@ export async function authorize(
   }
   const given = await digestOf(header.slice(BEARER.length));
   const candidates: [Identity, string][] = [
-    [{ role: "main", repo: null }, tokens.MAIN_TOKEN],
-    [{ role: "pr", repo: null }, tokens.PR_TOKEN],
-    [{ role: "e2e", repo: null }, tokens.E2E_TOKEN],
+    [{ role: "main", repo: null }, tokens.MAIN_TOKEN.trim()],
+    [{ role: "pr", repo: null }, tokens.PR_TOKEN.trim()],
+    [{ role: "e2e", repo: null }, tokens.E2E_TOKEN.trim()],
     ...list("read", tokens.READ_TOKENS),
     ...list("host", tokens.HOST_TOKENS),
     // Stryker disable next-line StringLiteral: text without an entry parses to no entries, so the fallback's text never matters
@@ -72,9 +73,12 @@ export async function authorize(
     }
   }
   const [first] = matches;
-  // A token that a repository entry shares with another entry or token has no
-  // single owner, so it matches nothing. Other lists keep their first match.
-  if (first === undefined || matches.some((m) => m.repo !== first.repo)) {
+  // A token that belongs to a different role or a different repository has no
+  // single owner, so it matches nothing.
+  if (
+    first === undefined ||
+    matches.some((m) => m.role !== first.role || m.repo !== first.repo)
+  ) {
     return null;
   }
   return first;
