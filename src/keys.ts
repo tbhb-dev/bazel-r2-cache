@@ -21,13 +21,17 @@ export interface Namespace {
 /**
  * The keys a role uses for one entry. `pr` is the pull request, as
  * `owner/repo/number` in lowercase, which only the pr role uses; without
- * one, the pr role only reads main's entries.
+ * one, the pr role only reads main's entries. `repo` is the repository a
+ * main token is bound to, as `owner/repo`: that token reads and writes only
+ * `ac/main/<owner>/<repo>/`, and the pr role reads its repository's part of
+ * main before the shared part.
  */
 export function namespace(
   role: Role,
   kind: Kind,
   digest: string,
   pr: string | null,
+  repo: string | null = null,
 ): Namespace {
   if (role === "e2e") {
     const key = `e2e/${kind}/${digest}`;
@@ -39,9 +43,14 @@ export function namespace(
     return { reads: [key], write: role === "read" ? null : key };
   }
   const main = `ac/main/${digest}`;
+  if (role === "main" && repo !== null) {
+    const key = `ac/main/${repo}/${digest}`;
+    return { reads: [key], write: key };
+  }
   if (role === "pr" && pr !== null) {
     const own = `ac/pr/${pr}/${digest}`;
-    return { reads: [own, main], write: own };
+    const prRepo = pr.split("/").slice(0, 2).join("/");
+    return { reads: [own, `ac/main/${prRepo}/${digest}`, main], write: own };
   }
   // Hosts share their results with each other, but nothing else reads
   // them, so a host's result never reaches CI or a deploy.

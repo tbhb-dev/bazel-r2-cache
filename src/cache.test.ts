@@ -24,6 +24,7 @@ beforeEach(() => {
     MAIN_TOKEN: "main-secret",
     PR_TOKEN: "pr-secret",
     E2E_TOKEN: "e2e-secret",
+    REPO_MAIN_TOKENS: "o/r=r-secret, o/q=q-secret",
   };
 });
 
@@ -283,6 +284,57 @@ describe("reads", () => {
     const options = pr === undefined ? { token } : { token, pr };
     const get = await handle(request("GET", `/ac/${HELLO}`, options), env);
     expect(get.status).toBe(404);
+  });
+
+  it("writes a repository's main token to that repository's part of main", async () => {
+    const put1 = await handle(
+      request("PUT", `/ac/${HELLO}`, { token: "r-secret", body: "r" }),
+      env,
+    );
+    expect(put1.status).toBe(200);
+    expect(stored(`ac/main/o/r/${HELLO}`)).toBe("r");
+    expect(stored(`ac/main/${HELLO}`)).toBeUndefined();
+  });
+
+  it("keeps a repository's main entries from another repository's token", async () => {
+    put(`ac/main/o/r/${HELLO}`, "r");
+    put(`ac/main/${HELLO}`, "shared");
+    const r = await handle(
+      request("GET", `/ac/${HELLO}`, { token: "r-secret" }),
+      env,
+    );
+    expect(await r.text()).toBe("r");
+    const q = await handle(
+      request("GET", `/ac/${HELLO}`, { token: "q-secret" }),
+      env,
+    );
+    expect(q.status).toBe(404);
+    const w = await handle(
+      request("PUT", `/ac/${HELLO}`, { token: "q-secret", body: "q" }),
+      env,
+    );
+    expect(w.status).toBe(200);
+    expect(stored(`ac/main/o/r/${HELLO}`)).toBe("r");
+    expect(stored(`ac/main/o/q/${HELLO}`)).toBe("q");
+  });
+
+  it("gives a pull request its repository's main entry before the shared one", async () => {
+    put(`ac/main/o/r/${HELLO}`, "repo");
+    put(`ac/main/${HELLO}`, "shared");
+    const pr = { token: "pr-secret", pr: "o/r/7" };
+    const get = await handle(request("GET", `/ac/${HELLO}`, pr), env);
+    expect(await get.text()).toBe("repo");
+    const other = { token: "pr-secret", pr: "o/z/7" };
+    const shared = await handle(request("GET", `/ac/${HELLO}`, other), env);
+    expect(await shared.text()).toBe("shared");
+  });
+
+  it("refuses a pull request header with a repository's main token", async () => {
+    const response = await handle(
+      request("GET", `/ac/${HELLO}`, { token: "r-secret", pr: "o/r/7" }),
+      env,
+    );
+    expect(response.status).toBe(400);
   });
 
   it("keeps the end-to-end tests to their own namespace", async () => {

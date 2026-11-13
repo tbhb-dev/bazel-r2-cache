@@ -18,7 +18,7 @@ describe("namespace", () => {
       "pr",
       "ac",
       {
-        reads: [`ac/pr/o/r/42/${D}`, `ac/main/${D}`],
+        reads: [`ac/pr/o/r/42/${D}`, `ac/main/o/r/${D}`, `ac/main/${D}`],
         write: `ac/pr/o/r/42/${D}`,
       },
     ],
@@ -38,5 +38,30 @@ describe("namespace", () => {
       reads: [`ac/main/${D}`],
       write: null,
     });
+  });
+
+  it("binds a repository's main token to its own part of main", () => {
+    const key = `ac/main/o/r/${D}`;
+    expect(namespace("main", "ac", D, null, "o/r")).toEqual({
+      reads: [key],
+      write: key,
+    });
+    expect(namespace("main", "cas", D, null, "o/r")).toEqual({
+      reads: [`cas/${D}`],
+      write: `cas/${D}`,
+    });
+  });
+
+  it("ignores the repository for every role but main", () => {
+    expect(namespace("read", "ac", D, null, "o/r")).toEqual({
+      reads: [`ac/main/${D}`],
+      write: null,
+    });
+    expect(namespace("host", "ac", D, null, "o/r")).toEqual(
+      namespace("host", "ac", D, null),
+    );
+    expect(namespace("e2e", "ac", D, null, "o/r")).toEqual(
+      namespace("e2e", "ac", D, null),
+    );
   });
 });

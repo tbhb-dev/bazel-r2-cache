@@ -145,10 +145,11 @@ export async function handle(
     return status(404, "not found");
   }
   const [, kind, digest] = path.split("/") as [string, Kind, string];
-  const role = await authorize(request.headers.get("Authorization"), env);
-  if (role === null) {
+  const identity = await authorize(request.headers.get("Authorization"), env);
+  if (identity === null) {
     return status(401, "unauthorized", { "WWW-Authenticate": "Bearer" });
   }
+  const { role, repo } = identity;
   const prHeader = request.headers.get(PR_HEADER);
   const refusal = refusePullRequest(role, prHeader);
   if (refusal !== null) {
@@ -156,7 +157,7 @@ export async function handle(
   }
   // Only the pr role reads the pull request; the others ignore it.
   const pr = prHeader === null ? null : pullRequest(prHeader);
-  const keys = namespace(role, kind, digest, pr);
+  const keys = namespace(role, kind, digest, pr, repo);
   switch (request.method) {
     case "GET":
       return get(keys, env);

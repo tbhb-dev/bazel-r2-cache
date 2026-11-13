@@ -17,6 +17,7 @@ export interface Env {
   readonly MAIN_TOKEN: string;
   readonly PR_TOKEN: string;
   readonly E2E_TOKEN: string;
+  readonly REPO_MAIN_TOKENS?: string;
   readonly CF_VERSION_METADATA: { readonly id: string };
 }
 
