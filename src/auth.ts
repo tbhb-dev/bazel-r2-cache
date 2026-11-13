@@ -17,15 +17,15 @@ import { sha256Hex } from "./digest.ts";
  */
 export type Role = "read" | "main" | "pr" | "host" | "e2e";
 
-/** The Worker secrets that hold the bearer tokens. */
+/** The Worker secrets that hold the bearer tokens. A secret that isn't set is undefined. */
 export interface Tokens {
   /** Comma-separated: one read token per consumer, so each can be revoked. */
-  readonly READ_TOKENS: string;
+  readonly READ_TOKENS?: string;
   /** Comma-separated: one host token per build host, likewise. */
-  readonly HOST_TOKENS: string;
-  readonly MAIN_TOKEN: string;
-  readonly PR_TOKEN: string;
-  readonly E2E_TOKEN: string;
+  readonly HOST_TOKENS?: string;
+  readonly MAIN_TOKEN?: string;
+  readonly PR_TOKEN?: string;
+  readonly E2E_TOKEN?: string;
   /**
    * Comma-separated `owner/repo=token` entries: one main token per
    * repository, so each can be revoked and none writes another's cache.
@@ -45,9 +45,10 @@ const BEARER = "Bearer ";
 /**
  * The identity of the bearer token in an `Authorization` header, or null
  * when the header is missing, malformed, or holds no known token. An unset
- * (empty) secret or list entry never matches, and neither does a token that
- * two roles or two repositories share. The same role or repository listed
- * twice with one token still matches.
+ * (empty or undefined) secret or list entry never matches, and neither does
+ * a token that two roles or two repositories share. An identical role and
+ * repository pair listed twice with one token still matches. Padding around a
+ * token is trimmed, so two tokens that differ only in padding collide.
  */
 export async function authorize(
   header: string | null,
@@ -58,13 +59,12 @@ export async function authorize(
   }
   const given = await digestOf(header.slice(BEARER.length));
   const candidates: [Identity, string][] = [
-    [{ role: "main", repo: null }, tokens.MAIN_TOKEN.trim()],
-    [{ role: "pr", repo: null }, tokens.PR_TOKEN.trim()],
-    [{ role: "e2e", repo: null }, tokens.E2E_TOKEN.trim()],
+    [{ role: "main", repo: null }, clean(tokens.MAIN_TOKEN)],
+    [{ role: "pr", repo: null }, clean(tokens.PR_TOKEN)],
+    [{ role: "e2e", repo: null }, clean(tokens.E2E_TOKEN)],
     ...list("read", tokens.READ_TOKENS),
     ...list("host", tokens.HOST_TOKENS),
-    // Stryker disable next-line StringLiteral: text without an entry parses to no entries, so the fallback's text never matters
-    ...repoMain(tokens.REPO_MAIN_TOKENS ?? ""),
+    ...repoMain(tokens.REPO_MAIN_TOKENS),
   ];
   const matches: Identity[] = [];
   for (const [identity, secret] of candidates) {
@@ -84,8 +84,16 @@ export async function authorize(
   return first;
 }
 
-function list(role: Role, secret: string): [Identity, string][] {
-  return secret.split(",").map((t) => [{ role, repo: null }, t.trim()]);
+// An unset secret is undefined and reads as empty, which never matches.
+function clean(secret: string | undefined): string {
+  // Stryker disable next-line StringLiteral: any fallback text that no token equals reads as unset
+  return (secret ?? "").trim();
+}
+
+function list(role: Role, secret: string | undefined): [Identity, string][] {
+  return clean(secret)
+    .split(",")
+    .map((t) => [{ role, repo: null }, t.trim()]);
 }
 
 // One `owner/repo=token` entry. GitHub compares names without case, so the
@@ -95,9 +103,9 @@ const ENTRY =
   /^\s*(?<repo>[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.{1,2}\s*=)[A-Za-z0-9._-]{1,100})\s*=\s*(?<token>\S+)\s*$/;
 
 // An entry that doesn't fit `ENTRY` never matches.
-function repoMain(secret: string): [Identity, string][] {
+function repoMain(secret: string | undefined): [Identity, string][] {
   const entries: [Identity, string][] = [];
-  for (const entry of secret.split(",")) {
+  for (const entry of clean(secret).split(",")) {
     const groups = ENTRY.exec(entry)?.groups as
       | { repo: string; token: string }
       | undefined;

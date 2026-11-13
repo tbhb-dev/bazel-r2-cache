@@ -180,6 +180,54 @@ describe("authorize", () => {
     });
   });
 
+  it.each([
+    "READ_TOKENS",
+    "HOST_TOKENS",
+    "MAIN_TOKEN",
+    "PR_TOKEN",
+    "E2E_TOKEN",
+    "REPO_MAIN_TOKENS",
+  ] as const)(
+    "still authorizes the other roles when %s is unset",
+    async (key) => {
+      const unset = Object.fromEntries(
+        Object.entries(tokens).filter(([name]) => name !== key),
+      );
+      expect(await authorize("Bearer ", unset)).toBeNull();
+      expect(await authorize("Bearer main-secret", unset)).toEqual(
+        key === "MAIN_TOKEN" ? null : { role: "main", repo: null },
+      );
+      expect(await authorize("Bearer e2e-secret", unset)).toEqual(
+        key === "E2E_TOKEN" ? null : { role: "e2e", repo: null },
+      );
+    },
+  );
+
+  it("refuses two tokens that differ only in padding", async () => {
+    const padded = { ...tokens, MAIN_TOKEN: " shared ", PR_TOKEN: "shared" };
+    expect(await authorize("Bearer shared", padded)).toBeNull();
+  });
+
+  it("matches a host token listed twice", async () => {
+    const twice = { ...tokens, HOST_TOKENS: "host-a, host-a" };
+    expect(await authorize("Bearer host-a", twice)).toEqual({
+      role: "host",
+      repo: null,
+    });
+  });
+
+  it("matches a repository that holds several tokens", async () => {
+    const several = { ...tokens, REPO_MAIN_TOKENS: "o/a=t1, o/a=t2" };
+    expect(await authorize("Bearer t1", several)).toEqual({
+      role: "main",
+      repo: "o/a",
+    });
+    expect(await authorize("Bearer t2", several)).toEqual({
+      role: "main",
+      repo: "o/a",
+    });
+  });
+
   it("works without any repository tokens", async () => {
     const none = {
       READ_TOKENS: tokens.READ_TOKENS,

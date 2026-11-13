@@ -511,6 +511,28 @@ describe("the Worker", () => {
     } as unknown as Env;
   }
 
+  it.each([
+    "READ_TOKENS",
+    "HOST_TOKENS",
+    "MAIN_TOKEN",
+    "PR_TOKEN",
+    "E2E_TOKEN",
+    "REPO_MAIN_TOKENS",
+  ] as const)("answers 401, not 500, when %s is unset", async (key) => {
+    const unset = Object.fromEntries(
+      Object.entries(bindings()).filter(([name]) => name !== key),
+    ) as unknown as Env;
+    const call = (token: string) =>
+      worker.fetch(
+        request("GET", `/cas/${HELLO}`, { token }) as WorkerRequest,
+        unset,
+      );
+    expect((await call("nobody")).status).toBe(401);
+    expect((await call("e2e-secret")).status).toBe(
+      key === "E2E_TOKEN" ? 401 : 404,
+    );
+  });
+
   it("serves requests through the cache and names its version", async () => {
     put(`cas/${HELLO}`, "hello");
     const response = await worker.fetch(
