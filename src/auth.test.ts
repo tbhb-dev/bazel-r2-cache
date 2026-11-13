@@ -88,6 +88,33 @@ describe("authorize", () => {
     expect(await authorize("Bearer t", two)).toBeNull();
   });
 
+  it("refuses a token that a repository entry shares with another owner", async () => {
+    const shared = {
+      ...tokens,
+      REPO_MAIN_TOKENS:
+        "o/a=main-secret,o/b=dup,o/c=dup,o/d=pr-secret,o/e=reader-a,o/f=ok,o/f=ok",
+    };
+    for (const token of ["main-secret", "dup", "pr-secret", "reader-a"]) {
+      expect(await authorize(`Bearer ${token}`, shared)).toBeNull();
+    }
+    expect(await authorize("Bearer ok", shared)).toEqual({
+      role: "main",
+      repo: "o/f",
+    });
+    expect(await authorize("Bearer host-a", shared)).toEqual({
+      role: "host",
+      repo: null,
+    });
+  });
+
+  it("keeps the first match among tokens that no repository entry holds", async () => {
+    const dup = { ...tokens, HOST_TOKENS: "reader-a" };
+    expect(await authorize("Bearer reader-a", dup)).toEqual({
+      role: "read",
+      repo: null,
+    });
+  });
+
   it("works without any repository tokens", async () => {
     const none = {
       READ_TOKENS: tokens.READ_TOKENS,
