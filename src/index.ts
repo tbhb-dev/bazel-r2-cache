@@ -12,11 +12,11 @@ export const VERSION_HEADER = "Bazel-Cache-Worker-Version";
 /** The Worker's bindings: the R2 bucket, the token secrets, its version. */
 export interface Env {
   readonly CACHE: R2Bucket;
-  readonly READ_TOKENS: string;
-  readonly HOST_TOKENS: string;
-  readonly MAIN_TOKEN: string;
-  readonly PR_TOKEN: string;
-  readonly E2E_TOKEN: string;
+  readonly READ_TOKENS?: string;
+  readonly HOST_TOKENS?: string;
+  readonly MAIN_TOKEN?: string;
+  readonly PR_TOKEN?: string;
+  readonly E2E_TOKEN?: string;
   readonly REPO_MAIN_TOKENS?: string;
   readonly CF_VERSION_METADATA: { readonly id: string };
 }
