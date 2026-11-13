@@ -45,7 +45,8 @@ const BEARER = "Bearer ";
 /**
  * The identity of the bearer token in an `Authorization` header, or null
  * when the header is missing, malformed, or holds no known token. An unset
- * (empty) secret or list entry never matches.
+ * (empty) secret or list entry never matches, and neither does a token that a
+ * repository entry shares with another repository entry or role.
  */
 export async function authorize(
   header: string | null,
@@ -64,12 +65,19 @@ export async function authorize(
     // Stryker disable next-line StringLiteral: text without an entry parses to no entries, so the fallback's text never matters
     ...repoMain(tokens.REPO_MAIN_TOKENS ?? ""),
   ];
+  const matches: Identity[] = [];
   for (const [identity, secret] of candidates) {
     if (secret !== "" && (await digestOf(secret)) === given) {
-      return identity;
+      matches.push(identity);
     }
   }
-  return null;
+  const [first] = matches;
+  // A token that a repository entry shares with another entry or token has no
+  // single owner, so it matches nothing. Other lists keep their first match.
+  if (first === undefined || matches.some((m) => m.repo !== first.repo)) {
+    return null;
+  }
+  return first;
 }
 
 function list(role: Role, secret: string): [Identity, string][] {
