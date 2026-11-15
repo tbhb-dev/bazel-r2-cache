@@ -47,6 +47,9 @@ runs:
         HELPER
         chmod 700 "${dir}/credential-helper"
         {
+          # An existing ~/.bazelrc may end without a newline; start a new line
+          # so the first flag does not fuse onto its last one.
+          echo
           echo "common --remote_cache=https://bazel-cache.tbhb.dev"
           echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
           if [[ -n "${PULL_REQUEST}" ]]; then
