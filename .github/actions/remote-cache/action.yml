@@ -36,18 +36,23 @@ runs:
         # The expressions pick the token before the shell starts, so a token
         # the event doesn't use never reaches it. The main token is bound to
         # this repository's main namespace on the Worker and goes with no
-        # pull request header; the PR token goes with one.
+        # pull request header; the PR token goes with one. An expression
+        # compares text without case, so the shell checks a push's ref
+        # exactly and drops the token for any branch but `main`.
         TOKEN: >-
           ${{
-            (github.event_name == 'merge_group'
-              || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+            (github.event_name == 'merge_group' || github.event_name == 'push')
             && inputs.main-token
             || github.event_name == 'pull_request' && inputs.pr-token
             || ''
           }}
         PULL_REQUEST_HEADER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
       run: |
+        if [[ "${EVENT}" == "push" && "${REF}" != "refs/heads/main" ]]; then
+          TOKEN=""
+        fi
         if [[ -z "${TOKEN}" ]]; then
           echo "::notice::no cache token for this ${EVENT} run; building without the remote cache"
           exit 0
