@@ -26,6 +26,19 @@ inputs:
       request's own namespace.
     required: false
     default: ""
+  remote-timeout:
+    description: >-
+      Seconds Bazel waits on one remote cache call, as a whole number. The
+      preset's `ci` config sets 3600, which let one stalled request hold a
+      build for about 23 minutes.
+    required: false
+    default: "120"
+  remote-retries:
+    description: >-
+      How many times Bazel retries a failed remote cache call, as a whole
+      number.
+    required: false
+    default: "3"
 
 runs:
   using: composite
@@ -49,7 +62,13 @@ runs:
         PULL_REQUEST_HEADER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         EVENT: ${{ github.event_name }}
         REF: ${{ github.ref }}
+        REMOTE_TIMEOUT: ${{ inputs.remote-timeout }}
+        REMOTE_RETRIES: ${{ inputs.remote-retries }}
       run: |
+        if [[ ! "${REMOTE_TIMEOUT}" =~ ^[0-9]+$ || ! "${REMOTE_RETRIES}" =~ ^[0-9]+$ ]]; then
+          echo "::error::remote-timeout and remote-retries must be whole numbers"
+          exit 1
+        fi
         if [[ "${EVENT}" == "push" && "${REF}" != "refs/heads/main" ]]; then
           TOKEN=""
         fi
@@ -73,6 +92,11 @@ runs:
           echo
           echo "common --remote_cache=https://bazel-cache.tbhb.dev"
           echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
+          # The preset's `common:ci --remote_timeout=3600` expands from
+          # --config=ci, after plain `common` lines, so only a `common:ci`
+          # line in this later-read file overrides it.
+          echo "common:ci --remote_timeout=${REMOTE_TIMEOUT}"
+          echo "common:ci --remote_retries=${REMOTE_RETRIES}"
           if [[ -n "${PULL_REQUEST_HEADER}" ]]; then
             echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST_HEADER}"
           fi
