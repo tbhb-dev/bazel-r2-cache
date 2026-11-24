@@ -64,8 +64,8 @@ jobs:
       - name: Use the remote cache
         uses: ./.github/actions/remote-cache
         with:
-          token: ${{ github.event_name == 'push' && secrets.BAZEL_CACHE_TOKEN || secrets.BAZEL_CACHE_PR_TOKEN }}
-          pull-request: ${{ github.event.pull_request.number }}
+          main-token: ${{ secrets.BAZEL_CACHE_TOKEN }}
+          pr-token: ${{ secrets.BAZEL_CACHE_PR_TOKEN }}
 
       # //... covers the @tbhb_rules lint, format, shell and docs tests over
       # the whole tree, the buildifier_test, and the preset.update_test that
@@ -111,7 +111,7 @@ jobs:
       - name: Use the remote cache
         uses: ./.github/actions/remote-cache
         with:
-          token: ${{ secrets.BAZEL_CACHE_TOKEN }}
+          main-token: ${{ secrets.BAZEL_CACHE_TOKEN }}
 
       - name: Test
         run: bazelisk test --config=ci //...
