@@ -4,22 +4,26 @@
 ---
 # Points the job's Bazel at the bazel-r2-cache remote cache. Every Bazel
 # repository's CI uses this action, pinned by commit, so the setup lives in
-# one place. The token goes to a mode-600 file that a credential helper
-# reads, so it never appears in a flag or the build's logs. An empty token,
-# as a fork's pull request gets, leaves the cache off.
+# one place. The action takes both tokens and picks one by the event: the
+# main token on a push to main or in a merge queue run, the org's PR token
+# on a pull request, and no cache for anything else. The token goes to a
+# mode-600 file that a credential helper reads, so it never appears in a
+# flag or the build's logs. An empty chosen token, as a fork's pull request
+# gets, leaves the cache off.
 name: Use the bazel-r2-cache remote cache
 description: Configure Bazel to read and write the bazel-r2-cache remote cache.
 
 inputs:
-  token:
+  main-token:
     description: >-
-      The cache token: the main token on a push to main, the org's PR token
-      on a pull request. Empty builds without the cache.
-    required: true
-  pull-request:
+      The repository's main token, used on a push to main and in a merge
+      queue run. Pass an empty value where the job can't read it.
+    required: false
+    default: ""
+  pr-token:
     description: >-
-      The pull request number, on a pull request, so its entries go to its
-      own namespace. Required with the PR token.
+      The org's PR token, used on a pull request. Its entries go to the pull
+      request's own namespace.
     required: false
     default: ""
 
@@ -29,11 +33,25 @@ runs:
     - name: Use the remote cache
       shell: bash
       env:
-        TOKEN: ${{ inputs.token }}
-        PULL_REQUEST: ${{ inputs.pull-request }}
+        MAIN_TOKEN: ${{ inputs.main-token }}
+        PR_TOKEN: ${{ inputs.pr-token }}
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        PULL_REQUEST: ${{ github.event.pull_request.number }}
       run: |
+        # The main token is bound to this repository's main namespace on the
+        # Worker, so it goes with no pull request header; the PR token goes
+        # with one.
+        TOKEN=""
+        PULL_REQUEST_HEADER=""
+        if [[ "${EVENT}" == "merge_group" || ( "${EVENT}" == "push" && "${REF}" == "refs/heads/main" ) ]]; then
+          TOKEN="${MAIN_TOKEN}"
+        elif [[ "${EVENT}" == "pull_request" ]]; then
+          TOKEN="${PR_TOKEN}"
+          PULL_REQUEST_HEADER="${PULL_REQUEST}"
+        fi
         if [[ -z "${TOKEN}" ]]; then
-          echo "::notice::no cache token for this run; building without the remote cache"
+          echo "::notice::no cache token for this ${EVENT} run; building without the remote cache"
           exit 0
         fi
         dir="${RUNNER_TEMP}/bazel-cache"
@@ -52,7 +70,7 @@ runs:
           echo
           echo "common --remote_cache=https://bazel-cache.tbhb.dev"
           echo "common --credential_helper=bazel-cache.tbhb.dev=${dir}/credential-helper"
-          if [[ -n "${PULL_REQUEST}" ]]; then
-            echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST}"
+          if [[ -n "${PULL_REQUEST_HEADER}" ]]; then
+            echo "common --remote_header=Bazel-Cache-Pull-Request=${GITHUB_REPOSITORY}/${PULL_REQUEST_HEADER}"
           fi
         } >> "${HOME}/.bazelrc"
