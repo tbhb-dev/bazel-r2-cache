@@ -31,14 +31,26 @@ const PATH = /^\/(ac|cas)\/[0-9a-f]{64}$/;
  */
 export const PR_HEADER = "Bazel-Cache-Pull-Request";
 
+/** The optional header that scopes read and host action cache lookups. */
+export const REPO_HEADER = "Bazel-Cache-Repository";
+
 // A GitHub owner and repository name, then the number. GitHub compares
 // names without case, so the namespace is lowercase.
 const PR_ID =
   /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}\/[1-9][0-9]{0,8}$/;
+const REPO_ID = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
 
 function pullRequest(header: string): string | null {
   const repo = header.split("/")[1];
   if (!PR_ID.test(header) || repo === "." || repo === "..") {
+    return null;
+  }
+  return header.toLowerCase();
+}
+
+function repository(header: string): string | null {
+  const repo = header.split("/")[1];
+  if (!REPO_ID.test(header) || repo === "." || repo === "..") {
     return null;
   }
   return header.toLowerCase();
@@ -149,7 +161,7 @@ export async function handle(
   if (identity === null) {
     return status(401, "unauthorized", { "WWW-Authenticate": "Bearer" });
   }
-  const { role, repo } = identity;
+  const { role } = identity;
   const prHeader = request.headers.get(PR_HEADER);
   const refusal = refusePullRequest(role, prHeader);
   if (refusal !== null) {
@@ -157,6 +169,16 @@ export async function handle(
   }
   // Only the pr role reads the pull request; the others ignore it.
   const pr = prHeader === null ? null : pullRequest(prHeader);
+  let repo = identity.repo;
+  if (kind === "ac" && (role === "read" || role === "host")) {
+    const repoHeader = request.headers.get(REPO_HEADER);
+    if (repoHeader !== null) {
+      repo = repository(repoHeader);
+      if (repo === null) {
+        return status(400, `${REPO_HEADER} must be owner/repo`);
+      }
+    }
+  }
   const keys = namespace(role, kind, digest, pr, repo);
   switch (request.method) {
     case "GET":

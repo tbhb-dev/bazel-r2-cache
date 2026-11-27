@@ -34,6 +34,8 @@ The action also caps how long one cache call can stall a build. It writes `commo
 
 The Worker binds a token from its `REPO_MAIN_TOKENS` mapping to the repository's `ac/main/<owner>/<repo>/` namespace, so pass that token and not the legacy shared main token. A merge queue run then writes the same entries a push to `main` would.
 
+A read or host token can read a repository's main action cache by setting `--remote_header=Bazel-Cache-Repository=owner/repo` in `~/.bazelrc`. The Worker looks up that repository's entries before the shared main entries. Hosts never write to a repository's main action cache.
+
 A merge queue run builds code that no push to `main` has reviewed yet, and it writes with the main token. A repository that adopts a merge queue must therefore require approval, with stale-review dismissal, before a pull request can be queued. Without that, a change nobody approved could write main entries.
 
 The main token is a secret of the main-only `cache` environment. A job that reads it on a merge queue run needs `environment: cache`, and the environment's deployment branch rules must allow the queue's `gh-readonly-queue/main/*` refs, or GitHub refuses the job.

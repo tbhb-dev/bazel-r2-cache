@@ -21,10 +21,11 @@ export interface Namespace {
 /**
  * The keys a role uses for one entry. `pr` is the pull request, as
  * `owner/repo/number` in lowercase, which only the pr role uses; without
- * one, the pr role only reads main's entries. `repo` is the repository a
- * main token is bound to, as `owner/repo`: that token reads and writes only
- * `ac/main/<owner>/<repo>/`, and the pr role reads its repository's part of
- * main before the shared part.
+ * one, the pr role only reads main's entries. A bound main token reads and
+ * writes only `ac/main/<owner>/<repo>/`, and the pr role reads its repository's
+ * part of main before the shared part. `repo` is `owner/repo` for a bound main
+ * token or for a read or host request. For read and host requests it adds the
+ * repository's main action cache as the first read, with no effect on writes.
  */
 export function namespace(
   role: Role,
@@ -52,10 +53,15 @@ export function namespace(
     const prRepo = pr.split("/").slice(0, 2).join("/");
     return { reads: [own, `ac/main/${prRepo}/${digest}`, main], write: own };
   }
-  // Hosts share their results with each other, but nothing else reads
-  // them, so a host's result never reaches CI or a deploy.
-  if (role === "host") {
-    return { reads: [main, `ac/host/${digest}`], write: `ac/host/${digest}` };
+  if (role === "read" || role === "host") {
+    const reads = repo === null ? [main] : [`ac/main/${repo}/${digest}`, main];
+    if (role === "read") {
+      return { reads, write: null };
+    }
+    // Hosts share their results with each other, but nothing else reads
+    // them, so a host's result never reaches CI or a deploy.
+    const host = `ac/host/${digest}`;
+    return { reads: [...reads, host], write: host };
   }
   return { reads: [main], write: role === "main" ? main : null };
 }
