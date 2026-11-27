@@ -2,7 +2,13 @@
 // Copyright Tony Burns
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type CacheEnv, handle, MAX_UPLOAD_BYTES, PR_HEADER } from "./cache.ts";
+import {
+  type CacheEnv,
+  handle,
+  MAX_UPLOAD_BYTES,
+  PR_HEADER,
+  REPO_HEADER,
+} from "./cache.ts";
 import { sha256Hex } from "./digest.ts";
 import worker, { type Env, VERSION_HEADER } from "./index.ts";
 import { MemoryStore } from "./testing.ts";
@@ -32,6 +38,7 @@ interface Options {
   readonly token?: string | null;
   readonly body?: string;
   readonly pr?: string;
+  readonly repo?: string;
 }
 
 function request(method: string, path: string, options: Options = {}) {
@@ -42,6 +49,9 @@ function request(method: string, path: string, options: Options = {}) {
   }
   if (options.pr !== undefined) {
     headers.set(PR_HEADER, options.pr);
+  }
+  if (options.repo !== undefined) {
+    headers.set(REPO_HEADER, options.repo);
   }
   const init: RequestInit = { method, headers };
   if (options.body !== undefined) {
@@ -190,6 +200,195 @@ describe("the pull request header", () => {
       env,
     );
     expect(await get.text()).toBe("main");
+  });
+});
+
+describe("the repository header", () => {
+  describe.each(["read-secret", "host-secret"])("with %s", (token) => {
+    it.each(["o/r", "O/R"])("reads %s's main entry first", async (repo) => {
+      put(`ac/main/o/r/${HELLO}`, "entry");
+      put(`ac/main/${HELLO}`, "shared");
+      put(`ac/host/${HELLO}`, "host");
+      const get = await handle(
+        request("GET", `/ac/${HELLO}`, { token, repo }),
+        env,
+      );
+      expect(get.status).toBe(200);
+      expect(await get.text()).toBe("entry");
+      const head = await handle(
+        request("HEAD", `/ac/${HELLO}`, { token, repo }),
+        env,
+      );
+      expect(head.status).toBe(200);
+      expect(head.headers.get("Content-Length")).toBe("5");
+      expect(await head.text()).toBe("");
+    });
+
+    it.each(["o/unknown", "o/q"])(
+      "misses for %s when only o/r has an entry",
+      async (repo) => {
+        put(`ac/main/o/r/${HELLO}`, "entry");
+        const get = await handle(
+          request("GET", `/ac/${HELLO}`, { token, repo }),
+          env,
+        );
+        expect(get.status).toBe(404);
+        expect(await get.text()).toBe("not found");
+        const head = await handle(
+          request("HEAD", `/ac/${HELLO}`, { token, repo }),
+          env,
+        );
+        expect(head.status).toBe(404);
+      },
+    );
+
+    it("keeps pull request entries private to the pull request role", async () => {
+      put(`ac/pr/o/r/42/${HELLO}`, "pull request");
+      const get = await handle(
+        request("GET", `/ac/${HELLO}`, { token, repo: "o/r" }),
+        env,
+      );
+      expect(get.status).toBe(404);
+    });
+
+    it("falls back to the shared main entry", async () => {
+      put(`ac/main/${HELLO}`, "shared");
+      put(`ac/host/${HELLO}`, "host");
+      const get = await handle(
+        request("GET", `/ac/${HELLO}`, { token, repo: "o/unknown" }),
+        env,
+      );
+      expect(await get.text()).toBe("shared");
+    });
+
+    it.each([
+      "o",
+      "o/r/42",
+      "o/.",
+      "o/..",
+      "",
+      "../x",
+      "-o/r",
+      "o.x/r",
+      "/r",
+      "o/",
+      "o/r#1",
+      `${"o".repeat(40)}/r`,
+      `o/${"r".repeat(101)}`,
+    ])("refuses repository %j", async (repo) => {
+      const response = await handle(
+        request("GET", `/ac/${HELLO}`, { token, repo }),
+        env,
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toBe(
+        "Bazel-Cache-Repository must be owner/repo",
+      );
+    });
+
+    it.each(["o/r", "o/.."])("ignores the blob header %j", async (repo) => {
+      put(`cas/${HELLO}`, "hello");
+      const response = await handle(
+        request("GET", `/cas/${HELLO}`, { token, repo }),
+        env,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Length")).toBe("5");
+      expect(await response.text()).toBe("hello");
+    });
+  });
+
+  it("accepts a 39-character owner and a 100-character repository", async () => {
+    const repo = `0${"o-".repeat(18)}o1/.0${"r_-".repeat(32)}rr`;
+    put(`ac/main/${repo}/${HELLO}`, "entry");
+    const response = await handle(
+      request("GET", `/ac/${HELLO}`, { token: "read-secret", repo }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("entry");
+  });
+
+  it("falls back to the hosts' entry for a host", async () => {
+    put(`ac/host/${HELLO}`, "host");
+    const get = await handle(
+      request("GET", `/ac/${HELLO}`, {
+        token: "host-secret",
+        repo: "o/unknown",
+      }),
+      env,
+    );
+    expect(await get.text()).toBe("host");
+  });
+
+  it.each(["ac", "cas"])("keeps a read token from writing %s", async (kind) => {
+    const response = await handle(
+      request("PUT", `/${kind}/${HELLO}`, {
+        token: "read-secret",
+        repo: "o/r",
+        body: "hello",
+      }),
+      env,
+    );
+    expect(response.status).toBe(403);
+    expect(store.objects.size).toBe(0);
+  });
+
+  it("keeps a host's write in the host action cache", async () => {
+    const main = `ac/main/o/r/${HELLO}`;
+    const host = `ac/host/${HELLO}`;
+    put(main, "entry");
+    const response = await handle(
+      request("PUT", `/ac/${HELLO}`, {
+        token: "host-secret",
+        repo: "o/r",
+        body: "host",
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect([...store.objects.keys()]).toEqual([main, host]);
+    expect(stored(main)).toBe("entry");
+    expect(stored(host)).toBe("host");
+  });
+
+  it("keeps a host's blob write in the shared pool", async () => {
+    const response = await handle(
+      request("PUT", `/cas/${HELLO}`, {
+        token: "host-secret",
+        repo: "o/..",
+        body: "hello",
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect([...store.objects.keys()]).toEqual([`cas/${HELLO}`]);
+    expect(stored(`cas/${HELLO}`)).toBe("hello");
+  });
+
+  it.each([
+    ["main-secret", undefined, `ac/main/${HELLO}`],
+    ["r-secret", undefined, `ac/main/o/r/${HELLO}`],
+    ["pr-secret", "o/r/42", `ac/pr/o/r/42/${HELLO}`],
+    ["e2e-secret", undefined, `e2e/ac/${HELLO}`],
+  ])("does not affect requests with %s", async (token, pr, key) => {
+    const options = pr === undefined ? { token } : { token, pr };
+    const write = await handle(
+      request("PUT", `/ac/${HELLO}`, {
+        ...options,
+        repo: "o/q",
+        body: "entry",
+      }),
+      env,
+    );
+    expect(write.status).toBe(200);
+    expect([...store.objects.keys()]).toEqual([key]);
+    const read = await handle(
+      request("GET", `/ac/${HELLO}`, { ...options, repo: "o/.." }),
+      env,
+    );
+    expect(read.status).toBe(200);
+    expect(await read.text()).toBe("entry");
   });
 });
 

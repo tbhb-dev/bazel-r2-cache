@@ -52,14 +52,39 @@ describe("namespace", () => {
     });
   });
 
-  it("ignores the repository for every role but main", () => {
-    expect(namespace("read", "ac", D, null, "o/r")).toEqual({
-      reads: [`ac/main/${D}`],
-      write: null,
-    });
-    expect(namespace("host", "ac", D, null, "o/r")).toEqual(
-      namespace("host", "ac", D, null),
-    );
+  it.each([
+    [
+      "read",
+      "ac",
+      "o/r",
+      { reads: [`ac/main/o/r/${D}`, `ac/main/${D}`], write: null },
+    ],
+    [
+      "host",
+      "ac",
+      "o/r",
+      {
+        reads: [`ac/main/o/r/${D}`, `ac/main/${D}`, `ac/host/${D}`],
+        write: `ac/host/${D}`,
+      },
+    ],
+    ["read", "ac", null, { reads: [`ac/main/${D}`], write: null }],
+    [
+      "host",
+      "ac",
+      null,
+      { reads: [`ac/main/${D}`, `ac/host/${D}`], write: `ac/host/${D}` },
+    ],
+    ["read", "cas", "o/r", { reads: [`cas/${D}`], write: null }],
+    ["host", "cas", "o/r", { reads: [`cas/${D}`], write: `cas/${D}` }],
+  ] as const)(
+    "gives %s its %s keys with repository %j",
+    (role, kind, repo, expected) => {
+      expect(namespace(role, kind, D, null, repo)).toEqual(expected);
+    },
+  );
+
+  it("ignores the repository for the e2e role", () => {
     expect(namespace("e2e", "ac", D, null, "o/r")).toEqual(
       namespace("e2e", "ac", D, null),
     );

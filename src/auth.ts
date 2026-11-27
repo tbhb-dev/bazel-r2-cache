@@ -5,14 +5,17 @@ import { sha256Hex } from "./digest.ts";
 
 /**
  * What a token may do:
- * - read: read main's action cache and the blobs; developers
+ * - read: read main's action cache and the blobs; developers. The optional
+ *   `Bazel-Cache-Repository` header looks up that repository's main entries first
  * - main: read and write main's action cache and the blobs; pushes to main.
  *   A token from `REPO_MAIN_TOKENS` is bound to one repository and reads and
  *   writes only that repository's part of main's action cache
  * - pr: read a pull request's action cache, then main's, and write the
  *   pull request's and the blobs; pull requests from organization branches
  * - host: read main's action cache, then the hosts', and write the hosts'
- *   and the blobs; the trusted build hosts, which share their own results
+ *   and the blobs; the trusted build hosts, which share their own results.
+ *   The optional `Bazel-Cache-Repository` header looks up that repository's
+ *   main entries first
  * - e2e: read and write only the end-to-end tests' own namespace
  */
 export type Role = "read" | "main" | "pr" | "host" | "e2e";
