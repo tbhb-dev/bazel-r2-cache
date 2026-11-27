@@ -150,7 +150,7 @@ worker_types_test(
 # `bazel run //:deploy_stg` (then prd) deploys the Worker: the new version
 # runs //e2e:check at 0% through the version override, then again on the
 # live URL after it takes all traffic. The workflow supplies the Cloudflare
-# credentials and the five token secrets from 1Password; the check sees
+# credentials and the six token secrets from 1Password; the check sees
 # only E2E_TOKEN. Each environment's first deploy is a manual bootstrap.
 TOKEN_SECRETS = {
     "E2E_TOKEN": "E2E_TOKEN",
@@ -158,6 +158,7 @@ TOKEN_SECRETS = {
     "MAIN_TOKEN": "MAIN_TOKEN",
     "PR_TOKEN": "PR_TOKEN",
     "READ_TOKENS": "READ_TOKENS",
+    "REPO_MAIN_TOKENS": "REPO_MAIN_TOKENS",
 }
 
 worker_deploy(
@@ -214,16 +215,22 @@ depcruise_test(
     node_modules = [":node_modules"],
 )
 
+# Deploy configuration read by src/deploy.test.mjs to keep Worker secrets in sync.
+DEPLOY_CONFIG = [
+    ".github/workflows/deploy.yml",
+    "BUILD.bazel",
+]
+
 vitest_test(
     name = "vitest_test",
-    srcs = WORKER,
+    srcs = WORKER + DEPLOY_CONFIG,
     node_modules = [":node_modules"],
 )
 
 # stryker.config.mjs sets concurrency 2; the tag gives the test those CPUs.
 stryker_test(
     name = "stryker_test",
-    srcs = WORKER,
+    srcs = WORKER + DEPLOY_CONFIG,
     node_modules = [":node_modules"],
     tags = ["cpu:2"],
 )
