@@ -2,7 +2,7 @@
 // Copyright Tony Burns
 
 import { describe, expect, it } from "vitest";
-import { authorize } from "./auth.ts";
+import { authorize as authorizeAt } from "./auth.ts";
 
 const tokens = {
   READ_TOKENS: "reader-a, reader-b",
@@ -12,6 +12,12 @@ const tokens = {
   E2E_TOKEN: "e2e-secret",
   REPO_MAIN_TOKENS: "Org-A/Repo-One=one-secret, org-a/repo-two=two-secret",
 };
+
+// The list tokens don't depend on the origin or the time.
+const authorize = (
+  header: string | null,
+  list: Parameters<typeof authorizeAt>[1],
+) => authorizeAt(header, list, "https://cache.test", Date.now());
 
 describe("authorize", () => {
   it.each([
@@ -26,6 +32,7 @@ describe("authorize", () => {
     expect(await authorize(`Bearer ${token}`, tokens)).toEqual({
       role,
       repo: null,
+      pr: null,
     });
   });
 
@@ -36,6 +43,7 @@ describe("authorize", () => {
     expect(await authorize(`Bearer ${token}`, tokens)).toEqual({
       role: "main",
       repo,
+      pr: null,
     });
   });
 
@@ -72,10 +80,12 @@ describe("authorize", () => {
     expect(await authorize("Bearer t1", ok)).toEqual({
       role: "main",
       repo: `${owner}/${repo}`,
+      pr: null,
     });
     expect(await authorize("Bearer t2", ok)).toEqual({
       role: "main",
       repo: "x/..a",
+      pr: null,
     });
   });
 
@@ -100,10 +110,12 @@ describe("authorize", () => {
     expect(await authorize("Bearer ok", shared)).toEqual({
       role: "main",
       repo: "o/f",
+      pr: null,
     });
     expect(await authorize("Bearer host-a", shared)).toEqual({
       role: "host",
       repo: null,
+      pr: null,
     });
   });
 
@@ -120,6 +132,7 @@ describe("authorize", () => {
     expect(await authorize("Bearer reader-a", shared)).toEqual({
       role: "read",
       repo: null,
+      pr: null,
     });
   });
 
@@ -137,6 +150,7 @@ describe("authorize", () => {
     expect(await authorize("Bearer t1", twice)).toEqual({
       role: "main",
       repo: "o/a",
+      pr: null,
     });
   });
 
@@ -145,6 +159,7 @@ describe("authorize", () => {
     expect(await authorize("Bearer reader-a", twice)).toEqual({
       role: "read",
       repo: null,
+      pr: null,
     });
   });
 
@@ -169,14 +184,17 @@ describe("authorize", () => {
     expect(await authorize("Bearer main-secret", padded)).toEqual({
       role: "main",
       repo: null,
+      pr: null,
     });
     expect(await authorize("Bearer pr-secret", padded)).toEqual({
       role: "pr",
       repo: null,
+      pr: null,
     });
     expect(await authorize("Bearer e2e-secret", padded)).toEqual({
       role: "e2e",
       repo: null,
+      pr: null,
     });
   });
 
@@ -195,10 +213,10 @@ describe("authorize", () => {
       );
       expect(await authorize("Bearer ", unset)).toBeNull();
       expect(await authorize("Bearer main-secret", unset)).toEqual(
-        key === "MAIN_TOKEN" ? null : { role: "main", repo: null },
+        key === "MAIN_TOKEN" ? null : { role: "main", repo: null, pr: null },
       );
       expect(await authorize("Bearer e2e-secret", unset)).toEqual(
-        key === "E2E_TOKEN" ? null : { role: "e2e", repo: null },
+        key === "E2E_TOKEN" ? null : { role: "e2e", repo: null, pr: null },
       );
     },
   );
@@ -213,6 +231,7 @@ describe("authorize", () => {
     expect(await authorize("Bearer host-a", twice)).toEqual({
       role: "host",
       repo: null,
+      pr: null,
     });
   });
 
@@ -221,10 +240,12 @@ describe("authorize", () => {
     expect(await authorize("Bearer t1", several)).toEqual({
       role: "main",
       repo: "o/a",
+      pr: null,
     });
     expect(await authorize("Bearer t2", several)).toEqual({
       role: "main",
       repo: "o/a",
+      pr: null,
     });
   });
 
@@ -240,6 +261,7 @@ describe("authorize", () => {
     expect(await authorize("Bearer main-secret", none)).toEqual({
       role: "main",
       repo: null,
+      pr: null,
     });
   });
 
@@ -270,10 +292,12 @@ describe("authorize", () => {
     expect(await authorize("Bearer reader-a", unset)).toEqual({
       role: "read",
       repo: null,
+      pr: null,
     });
     expect(await authorize("Bearer host-a", unset)).toEqual({
       role: "host",
       repo: null,
+      pr: null,
     });
   });
 });

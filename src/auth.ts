@@ -2,6 +2,7 @@
 // Copyright Tony Burns
 
 import { sha256Hex } from "./digest.ts";
+import { type SignedSettings, verifySigned } from "./token.ts";
 
 /**
  * What a token may do:
@@ -41,13 +42,17 @@ export interface Identity {
   readonly role: Role;
   /** `owner/repo` in lowercase, or null for every token not bound to one. */
   readonly repo: string | null;
+  /** The pull request number of a signed pr token, and null for every other token. */
+  readonly pr: number | null;
 }
 
 const BEARER = "Bearer ";
 
 /**
  * The identity of the bearer token in an `Authorization` header, or null
- * when the header is missing, malformed, or holds no known token. An unset
+ * when the header is missing, malformed, or holds no known token. A token that
+ * starts with `ci1.` or `host1.` is signed: it is verified against `origin`
+ * at `now` (milliseconds) and never looked up in the lists. An unset
  * (empty or undefined) secret or list entry never matches, and neither does
  * a token that two roles or two repositories share. An identical role and
  * repository pair listed twice with one token still matches. Padding around a
@@ -55,16 +60,22 @@ const BEARER = "Bearer ";
  */
 export async function authorize(
   header: string | null,
-  tokens: Tokens,
+  tokens: Tokens & SignedSettings,
+  origin: string,
+  now: number,
 ): Promise<Identity | null> {
   if (header?.startsWith(BEARER) !== true) {
     return null;
   }
-  const given = await digestOf(header.slice(BEARER.length));
+  const token = header.slice(BEARER.length);
+  if (token.startsWith("ci1.") || token.startsWith("host1.")) {
+    return verifySigned(token, tokens, origin, now);
+  }
+  const given = await digestOf(token);
   const candidates: [Identity, string][] = [
-    [{ role: "main", repo: null }, clean(tokens.MAIN_TOKEN)],
-    [{ role: "pr", repo: null }, clean(tokens.PR_TOKEN)],
-    [{ role: "e2e", repo: null }, clean(tokens.E2E_TOKEN)],
+    [{ role: "main", repo: null, pr: null }, clean(tokens.MAIN_TOKEN)],
+    [{ role: "pr", repo: null, pr: null }, clean(tokens.PR_TOKEN)],
+    [{ role: "e2e", repo: null, pr: null }, clean(tokens.E2E_TOKEN)],
     ...list("read", tokens.READ_TOKENS),
     ...list("host", tokens.HOST_TOKENS),
     ...repoMain(tokens.REPO_MAIN_TOKENS),
@@ -84,6 +95,8 @@ export async function authorize(
   ) {
     return null;
   }
+  // One line per request, so a later step can show that nothing uses the lists.
+  console.log(JSON.stringify({ event: "list-token", role: first.role }));
   return first;
 }
 
@@ -96,7 +109,7 @@ function clean(secret: string | undefined): string {
 function list(role: Role, secret: string | undefined): [Identity, string][] {
   return clean(secret)
     .split(",")
-    .map((t) => [{ role, repo: null }, t.trim()]);
+    .map((t) => [{ role, repo: null, pr: null }, t.trim()]);
 }
 
 // One `owner/repo=token` entry. GitHub compares names without case, so the
@@ -114,7 +127,7 @@ function repoMain(secret: string | undefined): [Identity, string][] {
       | undefined;
     if (groups !== undefined) {
       entries.push([
-        { role: "main", repo: groups.repo.toLowerCase() },
+        { role: "main", repo: groups.repo.toLowerCase(), pr: null },
         groups.token,
       ]);
     }

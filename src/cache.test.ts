@@ -12,6 +12,7 @@ import {
 import { sha256Hex } from "./digest.ts";
 import worker, { type Env, VERSION_HEADER } from "./index.ts";
 import { MemoryStore } from "./testing.ts";
+import { signCiToken } from "./token.ts";
 
 // SHA-256 of "hello".
 const HELLO =
@@ -751,5 +752,66 @@ describe("the Worker", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get(VERSION_HEADER)).toBe(VERSION);
     expect(response.headers.get("WWW-Authenticate")).toBe("Bearer");
+  });
+});
+
+describe("signed tokens", () => {
+  const SECRET = `ci-${crypto.randomUUID()}`;
+  const now = Math.floor(Date.now() / 1000);
+  const claims = (over: Record<string, unknown>) =>
+    ({
+      role: "main",
+      repo: "o/r",
+      aud: "https://cache.test",
+      jti: "id-1",
+      iat: now,
+      exp: now + 600,
+      ...over,
+    }) as Parameters<typeof signCiToken>[0];
+  const ci = (over: Record<string, unknown>) =>
+    signCiToken(claims(over), SECRET);
+  const writes = async (token: string, options: Options = {}) => {
+    const response = await handle(
+      request("PUT", `/ac/${OTHER}`, { body: "x", ...options, token }),
+      { ...env, CI_TOKEN_SIGNING_SECRET: SECRET },
+    );
+    const keys = [...store.objects.keys()];
+    return { status: response.status, text: await response.text(), keys };
+  };
+
+  it.each([undefined, "O/R/7", "o/r/7"])(
+    "lets a pr token write only its own pull request's entries, header %s",
+    async (pr) => {
+      const token = await ci({ role: "pr", pr: 7 });
+      const sent = await writes(token, pr === undefined ? {} : { pr });
+      expect(sent).toMatchObject({
+        status: 200,
+        keys: [`ac/pr/o/r/7/${OTHER}`],
+      });
+    },
+  );
+
+  it.each(["o/r/8", "o/q/7", "o/r", "nonsense"])(
+    "refuses a pr token that names %s in the header",
+    async (pr) => {
+      const token = await ci({ role: "pr", pr: 7 });
+      expect(await writes(token, { pr })).toEqual({
+        status: 400,
+        text: `${PR_HEADER} must name the token's pull request`,
+        keys: [],
+      });
+    },
+  );
+
+  it("keeps a main token to its repository's part of main", async () => {
+    const token = await ci({ role: "main", repo: "o/q" });
+    for (const repo of ["o/r", "bad"]) {
+      const sent = await writes(token, { repo });
+      expect(sent).toMatchObject({
+        status: 200,
+        keys: [`ac/main/o/q/${OTHER}`],
+      });
+    }
+    expect((await writes(token, { pr: "o/q/1" })).status).toBe(400);
   });
 });

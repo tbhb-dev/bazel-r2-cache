@@ -4,6 +4,7 @@
 import { authorize, type Role, type Tokens } from "./auth.ts";
 import { sha256Hex } from "./digest.ts";
 import { type Kind, type Namespace, namespace } from "./keys.ts";
+import type { SignedSettings } from "./token.ts";
 
 /** The part of an R2 bucket the cache uses. */
 export interface BlobStore {
@@ -14,7 +15,7 @@ export interface BlobStore {
   put(key: string, value: ArrayBuffer): Promise<unknown>;
 }
 
-export interface CacheEnv extends Tokens {
+export interface CacheEnv extends Tokens, SignedSettings {
   readonly CACHE: BlobStore;
 }
 
@@ -66,8 +67,18 @@ function status(
 
 // The response that refuses a request's pull request header, or null when
 // the header fits the role: the pr role must send one, as owner/repo/number,
-// and no other role may.
-function refusePullRequest(role: Role, header: string | null): Response | null {
+// and no other role may. A signed pr token names its own pull request
+// (`signed`), so it may send the header only to repeat it.
+function refusePullRequest(
+  role: Role,
+  header: string | null,
+  signed: string | null,
+): Response | null {
+  if (signed !== null) {
+    return header !== null && pullRequest(header) !== signed
+      ? status(400, `${PR_HEADER} must name the token's pull request`)
+      : null;
+  }
   if ((role === "pr") !== (header !== null)) {
     return status(400, `${PR_HEADER} goes with a pr token, and only with one`);
   }
@@ -157,18 +168,27 @@ export async function handle(
     return status(404, "not found");
   }
   const [, kind, digest] = path.split("/") as [string, Kind, string];
-  const identity = await authorize(request.headers.get("Authorization"), env);
+  const identity = await authorize(
+    request.headers.get("Authorization"),
+    env,
+    new URL(request.url).origin,
+    Date.now(),
+  );
   if (identity === null) {
     return status(401, "unauthorized", { "WWW-Authenticate": "Bearer" });
   }
   const { role } = identity;
   const prHeader = request.headers.get(PR_HEADER);
-  const refusal = refusePullRequest(role, prHeader);
+  const signedPr =
+    identity.pr === null
+      ? null
+      : `${String(identity.repo)}/${String(identity.pr)}`;
+  const refusal = refusePullRequest(role, prHeader, signedPr);
   if (refusal !== null) {
     return refusal;
   }
   // Only the pr role reads the pull request; the others ignore it.
-  const pr = prHeader === null ? null : pullRequest(prHeader);
+  const pr = signedPr ?? (prHeader === null ? null : pullRequest(prHeader));
   let repo = identity.repo;
   if (kind === "ac" && (role === "read" || role === "host")) {
     const repoHeader = request.headers.get(REPO_HEADER);
