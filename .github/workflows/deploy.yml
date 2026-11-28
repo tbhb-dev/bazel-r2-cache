@@ -126,7 +126,12 @@ jobs:
           MAIN_TOKEN: ${{ steps.secrets.outputs.MAIN_TOKEN }}
           PR_TOKEN: ${{ steps.secrets.outputs.PR_TOKEN }}
           E2E_TOKEN: ${{ steps.secrets.outputs.E2E_TOKEN }}
+          REPO_MAIN_TOKENS: ${{ steps.secrets.outputs.REPO_MAIN_TOKENS }}
         run: |
+          if [[ -z "${REPO_MAIN_TOKENS}" ]]; then
+            echo "::warning::REPO_MAIN_TOKENS is empty in the ${DEPLOY_ENV}" \
+              "Environment; keeping the Worker's existing secret"
+          fi
           bazelisk run --config=ci "//:deploy_${DEPLOY_ENV}"
           echo "deployed=true" >> "$GITHUB_OUTPUT"
 
