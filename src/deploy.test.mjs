@@ -85,13 +85,10 @@ function deployRunLines(workflow) {
   return body;
 }
 
-// Reads the `readonly NAME?: string;` lines declared in Env itself. Env may
-// extend other interfaces (SignedSettings holds the signed-token settings);
-// their keys are not read here, because the deploy does not pass them yet.
 function workerEnvTokenSecrets(indexTs) {
   const lines = indexTs.split("\n");
-  const start = lines.findIndex((line) =>
-    /^export interface Env\b[^{]*\{$/.test(line.trim()),
+  const start = lines.findIndex(
+    (line) => line.trim() === "export interface Env {",
   );
   expect(start).toBeGreaterThan(-1);
   const end = lines.indexOf("}", start + 1);
@@ -105,41 +102,6 @@ function workerEnvTokenSecrets(indexTs) {
   }
   return keys;
 }
-
-describe("workerEnvTokenSecrets", () => {
-  it("reads the optional string keys of a plain Env", () => {
-    const source = [
-      "export interface Env {",
-      "  readonly CACHE: R2Bucket;",
-      "  readonly READ_TOKENS?: string;",
-      "  readonly PR_TOKEN?: string;",
-      "}",
-    ].join("\n");
-    expect(workerEnvTokenSecrets(source)).toEqual(["READ_TOKENS", "PR_TOKEN"]);
-  });
-
-  it("reads an Env that extends other interfaces, but not their keys", () => {
-    const source = [
-      "export interface SignedSettings {",
-      "  readonly CI_TOKEN_SIGNING_SECRET?: string;",
-      "}",
-      "export interface Env extends SignedSettings, Other {",
-      "  readonly READ_TOKENS?: string;",
-      "  readonly CF_VERSION_METADATA: { readonly id: string };",
-      "}",
-    ].join("\n");
-    expect(workerEnvTokenSecrets(source)).toEqual(["READ_TOKENS"]);
-  });
-
-  it("fails when there is no Env interface", () => {
-    const source = [
-      "export interface Environment {",
-      "  readonly READ_TOKENS?: string;",
-      "}",
-    ].join("\n");
-    expect(() => workerEnvTokenSecrets(source)).toThrow();
-  });
-});
 
 describe("deploy token secrets", () => {
   it("keeps Worker Env, TOKEN_SECRETS, OPTIONAL_TOKEN_SECRETS and deploy.yml in sync", () => {

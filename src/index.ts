@@ -2,7 +2,6 @@
 // Copyright Tony Burns
 
 import { handle } from "./cache.ts";
-import type { SignedSettings } from "./token.ts";
 
 /**
  * The response header that names the Worker version that answered, so a
@@ -11,7 +10,7 @@ import type { SignedSettings } from "./token.ts";
 export const VERSION_HEADER = "Bazel-Cache-Worker-Version";
 
 /** The Worker's bindings: the R2 bucket, the token secrets, its version. */
-export interface Env extends SignedSettings {
+export interface Env {
   readonly CACHE: R2Bucket;
   readonly READ_TOKENS?: string;
   readonly HOST_TOKENS?: string;
